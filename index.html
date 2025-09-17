@@ -20,7 +20,7 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- HTML 結構與前一版完全相同 -->
+    <!-- 登入畫面 -->
     <div id="login-container" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div class="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
             <h1 class="text-3xl font-bold mb-2 text-center text-gray-700">專案管理看板</h1>
@@ -33,6 +33,8 @@
             </form>
         </div>
     </div>
+
+    <!-- 主應用程式畫面 -->
     <div id="app-container" class="hidden container mx-auto p-4 md:p-8">
         <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
             <div class="flex items-center space-x-3">
@@ -52,6 +54,8 @@
         </main>
         <footer class="text-center mt-8 text-gray-500 text-sm"><p>使用者: <span id="userEmail" class="font-mono bg-gray-200 px-2 py-1 rounded">載入中...</span></p></footer>
     </div>
+    
+    <!-- Modals -->
     <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md" id="modal-content"><h3 id="modalTitle" class="text-2xl font-bold mb-6">新增任務</h3><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskTitle" class="block text-gray-700 font-medium mb-2">任務標題</label><input type="text" id="taskTitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></div><div class="mb-6"><label for="taskDescription" class="block text-gray-700 font-medium mb-2">任務描述</label><textarea id="taskDescription" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">取消</button><button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">儲存</button></div></form></div></div>
     <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md"><h3 class="text-2xl font-bold mb-4">分享看板</h3><p class="text-gray-600 mb-4">複製連結並傳送給協作者：</p><input type="text" id="shareLinkInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" readonly><div class="flex justify-end mt-4"><button id="closeShareModalBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">關閉</button></div></div></div>
     <div id="newBoardModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md"><h3 class="text-2xl font-bold mb-4">建立新的共享看板</h3><p class="text-gray-600 mb-4">請為您的新看板命名：</p><input type="text" id="newBoardName" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="例如：產品開發專案"><div class="flex justify-end mt-4 space-x-2"><button id="cancelNewBoardBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">取消</button><button id="confirmNewBoardBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">建立</button></div></div></div>
@@ -61,7 +65,6 @@
         import { getFirestore, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // JavaScript 邏輯與前一版相同，但加入了 console.log 用於偵錯
         const firebaseConfig = {
           apiKey: "AIzaSyD648jO8xViAhhsDmUynDe6tY7IypYwzAU",
           authDomain: "my-project-kanban-fae66.firebaseapp.com",
@@ -73,30 +76,93 @@
         let db, auth, userId;
         let tasksUnsubscribe = null;
         let currentBoard = { type: 'private', id: null, name: '我的私人看板' };
-        
-        // --- 核心函數 (此處省略以保持簡潔，但檔案中是完整的) ---
+
+        const loginContainer = document.getElementById('login-container');
+        const appContainer = document.getElementById('app-container');
+        const boardSelector = document.getElementById('boardSelector');
+        const shareBoardBtn = document.getElementById('shareBoardBtn');
+        const userEmailSpan = document.getElementById('userEmail');
+        const taskModal = document.getElementById('taskModal');
+        const shareModal = document.getElementById('shareModal');
+        const newBoardModal = document.getElementById('newBoardModal');
+        const taskForm = document.getElementById('taskForm');
+
         function getTasksCollectionPath() { return currentBoard.type === 'shared' ? `shared_boards/${currentBoard.id}/tasks` : `users/${userId}/tasks`; }
-        function updateUIForBoardType() { document.getElementById('shareBoardBtn').classList.toggle('hidden', currentBoard.type !== 'shared'); }
-        // ... 其他函數 ...
+        function updateUIForBoardType() { shareBoardBtn.classList.toggle('hidden', currentBoard.type !== 'shared'); }
+
+        async function populateBoardSelector() {
+            boardSelector.innerHTML = '';
+            boardSelector.add(new Option('我的私人看板', 'private'));
+            const snapshot = await getDocs(collection(db, `users/${userId}/accessible_boards`));
+            snapshot.forEach(doc => boardSelector.add(new Option(doc.data().name, doc.id)));
+            boardSelector.add(new Option('+ 建立新的共享看板', 'create_new'));
+            boardSelector.value = currentBoard.type === 'private' ? 'private' : currentBoard.id;
+        }
+        
+        async function addBoardToUserListIfNeeded(boardId) {
+            const boardRef = doc(db, `users/${userId}/accessible_boards`, boardId);
+            if (!(await getDoc(boardRef)).exists()) {
+                const sharedBoardRef = doc(db, 'shared_boards', boardId);
+                const sharedBoardSnap = await getDoc(sharedBoardRef);
+                const boardName = sharedBoardSnap.exists() ? sharedBoardSnap.data().name : '未命名看板';
+                await setDoc(boardRef, { name: boardName });
+            }
+        }
+
+        function setupTaskListener() {
+            if (tasksUnsubscribe) tasksUnsubscribe();
+            const tasksCollection = collection(db, getTasksCollectionPath());
+            tasksUnsubscribe = onSnapshot(tasksCollection, (snapshot) => {
+                document.querySelectorAll('.tasks-container').forEach(col => col.innerHTML = '');
+                snapshot.docs.forEach(doc => {
+                    const taskElement = renderTask({ id: doc.id, ...doc.data() });
+                    const container = document.getElementById(`${taskElement.taskData.status}-tasks`);
+                    if (container) container.appendChild(taskElement.card);
+                });
+                lucide.createIcons();
+            });
+        }
+        
+        function renderTask(task) {
+            const taskCard = document.createElement('div');
+            taskCard.id = task.id;
+            taskCard.draggable = true;
+            taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing';
+            taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2 task-description">${task.description || ''}</p>`;
+            taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => { e.stopPropagation(); await deleteDoc(doc(db, getTasksCollectionPath(), task.id)); });
+            taskCard.addEventListener('click', () => openModal(task));
+            taskCard.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', e.target.id); e.target.classList.add('task-dragging'); });
+            taskCard.addEventListener('dragend', (e) => { e.target.classList.remove('task-dragging'); });
+            return { card: taskCard, taskData: task };
+        }
+
+        function openModal(task = null) {
+            taskForm.reset();
+            if (task) {
+                document.getElementById('modalTitle').textContent = '編輯任務';
+                document.getElementById('taskId').value = task.id;
+                document.getElementById('taskTitle').value = task.title;
+                document.getElementById('taskDescription').value = task.description;
+            } else {
+                document.getElementById('modalTitle').textContent = '新增任務';
+                document.getElementById('taskId').value = '';
+            }
+            taskModal.classList.remove('hidden');
+        }
+
+        function closeModal(modalElement) { modalElement.classList.add('hidden'); }
 
         async function initializeApp() {
-            console.log("偵錯開始：應用程式初始化..."); // DEBUG START
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                console.log("偵錯訊息：Firebase SDK 初始化成功。"); // DEBUG SUCCESS
-            } catch (e) {
-                console.error("偵錯錯誤：Firebase 初始化失敗！", e); // DEBUG ERROR
-                document.body.innerHTML = 'Firebase 初始化失敗，請檢查 console 中的錯誤訊息。';
-                return;
-            }
+            } catch (e) { console.error("Firebase initialization failed:", e); return; }
 
             onAuthStateChanged(auth, async (user) => {
-                console.log("偵錯訊息：使用者認證狀態改變，目前使用者:", user ? user.email : "未登入"); // DEBUG
                 if (user) {
                     userId = user.uid;
-                    document.getElementById('userEmail').textContent = user.email;
+                    userEmailSpan.textContent = user.email;
                     const urlParams = new URLSearchParams(window.location.search);
                     const boardId = urlParams.get('boardId');
                     if (boardId) {
@@ -108,57 +174,92 @@
                     await populateBoardSelector();
                     updateUIForBoardType();
                     setupTaskListener();
-                    document.getElementById('login-container').style.display = 'none';
-                    document.getElementById('app-container').classList.remove('hidden');
+                    loginContainer.style.display = 'none';
+                    appContainer.classList.remove('hidden');
                 } else {
-                    document.getElementById('login-container').style.display = 'flex';
-                    document.getElementById('app-container').classList.add('hidden');
+                    loginContainer.style.display = 'flex';
+                    appContainer.classList.add('hidden');
                     if (tasksUnsubscribe) tasksUnsubscribe();
                 }
             });
 
-            console.log("偵錯訊息：準備綁定事件監聽器..."); // DEBUG
-            
             document.getElementById('login-btn').addEventListener('click', async () => {
-                console.log("偵錯訊息：登入按鈕被點擊！"); // DEBUG
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
                 const errorDiv = document.getElementById('auth-error');
-                errorDiv.textContent = '登入中...';
+                errorDiv.textContent = '';
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
-                } catch (error) {
-                    console.error("偵錯錯誤：登入失敗", error.code); // DEBUG ERROR
-                    errorDiv.textContent = '登入失敗，請檢查信箱或密碼。';
+                } catch (error) { errorDiv.textContent = '登入失敗，請檢查信箱或密碼。'; }
+            });
+            document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+            document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
+            document.getElementById('cancelBtn').addEventListener('click', () => closeModal(taskModal));
+            document.getElementById('cancelNewBoardBtn').addEventListener('click', () => closeModal(newBoardModal));
+            document.getElementById('closeShareModalBtn').addEventListener('click', () => closeModal(shareModal));
+            shareBoardBtn.addEventListener('click', () => {
+                document.getElementById('shareLinkInput').value = window.location.href;
+                shareModal.classList.remove('hidden');
+                document.getElementById('shareLinkInput').select();
+            });
+            boardSelector.addEventListener('change', () => {
+                const val = boardSelector.value;
+                if (val === 'create_new') {
+                    newBoardModal.classList.remove('hidden');
+                    boardSelector.value = currentBoard.type === 'private' ? 'private' : currentBoard.id;
+                } else if (val === 'private') {
+                    window.location.href = window.location.pathname;
+                } else {
+                    window.location.href = `${window.location.pathname}?boardId=${val}`;
                 }
             });
-            console.log("偵錯訊息：登入按鈕事件綁定成功。"); // DEBUG
+            document.getElementById('confirmNewBoardBtn').addEventListener('click', async () => {
+                const newBoardName = document.getElementById('newBoardName').value.trim();
+                if (!newBoardName) return alert('請輸入看板名稱');
+                const newBoardRef = doc(collection(db, 'shared_boards'));
+                await setDoc(newBoardRef, { name: newBoardName, createdAt: serverTimestamp() });
+                await setDoc(doc(db, `users/${userId}/accessible_boards`, newBoardRef.id), { name: newBoardName });
+                window.location.href = `${window.location.pathname}?boardId=${newBoardRef.id}`;
+            });
+            taskForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('taskId').value;
+                const title = document.getElementById('taskTitle').value.trim();
+                const description = document.getElementById('taskDescription').value.trim();
+                if (!title) return;
+                const path = getTasksCollectionPath();
+                const taskData = { title, description, updatedAt: serverTimestamp() };
+                if (id) await updateDoc(doc(db, path, id), taskData);
+                else await addDoc(collection(db, path), { ...taskData, status: 'todo', createdAt: serverTimestamp() });
+                closeModal(taskModal);
+<h4>看板分享功能升級指南</h4>
+<p>這份指南會說明我們將如何修改資料庫結構，並提供新的安全規則，以支援看板列表功能。</p>
+<pre><code class="language-markdown">### 1. 新的 Firestore 資料結構
 
-            // --- 其他事件監聽器 (此處省略，但檔案中是完整的) ---
-            document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
-        }
-        
-        // --- 完整函數定義 (為了讓程式碼可執行，此處補上省略的函數) ---
-        async function populateBoardSelector() { /* ... */ }
-        async function addBoardToUserListIfNeeded(boardId) { /* ... */ }
-        function setupTaskListener() { /* ... */ }
-        // ... and so on for all other functions
-        const boardSelector = document.getElementById('boardSelector');
-        populateBoardSelector = async function() { boardSelector.innerHTML = ''; const privateOption = new Option('我的私人看板', 'private'); boardSelector.add(privateOption); const accessibleBoardsCol = collection(db, `users/${userId}/accessible_boards`); const snapshot = await getDocs(accessibleBoardsCol); snapshot.forEach(doc => { const boardData = doc.data(); const option = new Option(boardData.name, doc.id); boardSelector.add(option); }); const createNewOption = new Option('+ 建立新的共享看板', 'create_new'); boardSelector.add(createNewOption); boardSelector.value = currentBoard.type === 'private' ? 'private' : currentBoard.id; }
-        addBoardToUserListIfNeeded = async function(boardId) { const boardRef = doc(db, `users/${userId}/accessible_boards`, boardId); if (!(await getDoc(boardRef)).exists()) { const sharedBoardRef = doc(db, 'shared_boards', boardId); const sharedBoardSnap = await getDoc(sharedBoardRef); const boardName = sharedBoardSnap.exists() ? sharedBoardSnap.data().name : '未命名看板'; await setDoc(boardRef, { name: boardName }); } }
-        setupTaskListener = function() { if (tasksUnsubscribe) tasksUnsubscribe(); const path = getTasksCollectionPath(); const tasksCollection = collection(db, path); tasksUnsubscribe = onSnapshot(tasksCollection, (snapshot) => { document.querySelectorAll('.tasks-container').forEach(col => col.innerHTML = ''); snapshot.docs.forEach(doc => { const taskData = { id: doc.id, ...doc.data() }; const taskElement = renderTask(taskData); const container = document.getElementById(`${taskData.status}-tasks`); if (container) container.appendChild(taskElement); }); lucide.createIcons(); }); }
-        function renderTask(task) { const taskCard = document.createElement('div'); taskCard.id = task.id; taskCard.draggable = true; taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing'; taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2 task-description">${task.description || ''}</p>`; taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => { e.stopPropagation(); await deleteDoc(doc(db, getTasksCollectionPath(), task.id)); }); taskCard.addEventListener('click', () => openModal(task)); taskCard.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', e.target.id); e.target.classList.add('task-dragging'); }); taskCard.addEventListener('dragend', (e) => { e.target.classList.remove('task-dragging'); }); return taskCard; }
-        const taskModal = document.getElementById('taskModal'); const taskForm = document.getElementById('taskForm'); function openModal(task = null) { taskForm.reset(); if (task) { document.getElementById('modalTitle').textContent = '編輯任務'; document.getElementById('taskId').value = task.id; document.getElementById('taskTitle').value = task.title; document.getElementById('taskDescription').value = task.description; } else { document.getElementById('modalTitle').textContent = '新增任務'; } taskModal.classList.remove('hidden'); } function closeModal(modalElement) { modalElement.classList.add('hidden'); }
-        document.getElementById('addTaskBtn').addEventListener('click', () => openModal()); document.getElementById('cancelBtn').addEventListener('click', () => closeModal(taskModal)); document.getElementById('cancelNewBoardBtn').addEventListener('click', () => closeModal(document.getElementById('newBoardModal'))); document.getElementById('closeShareModalBtn').addEventListener('click', () => closeModal(document.getElementById('shareModal')));
-        document.getElementById('shareBoardBtn').addEventListener('click', () => { document.getElementById('shareLinkInput').value = window.location.href; document.getElementById('shareModal').classList.remove('hidden'); document.getElementById('shareLinkInput').select(); });
-        boardSelector.addEventListener('change', () => { const val = boardSelector.value; if (val === 'create_new') { document.getElementById('newBoardModal').classList.remove('hidden'); boardSelector.value = currentBoard.type === 'private' ? 'private' : currentBoard.id; } else if (val === 'private') { window.location.href = window.location.pathname; } else { window.location.href = `${window.location.pathname}?boardId=${val}`; } });
-        document.getElementById('confirmNewBoardBtn').addEventListener('click', async () => { const newBoardName = document.getElementById('newBoardName').value.trim(); if (!newBoardName) { alert('請輸入看板名稱'); return; } const newBoardRef = doc(collection(db, 'shared_boards')); await setDoc(newBoardRef, { name: newBoardName, createdAt: serverTimestamp() }); await setDoc(doc(db, `users/${userId}/accessible_boards`, newBoardRef.id), { name: newBoardName }); window.location.href = `${window.location.pathname}?boardId=${newBoardRef.id}`; });
-        taskForm.addEventListener('submit', async (e) => { e.preventDefault(); const id = document.getElementById('taskId').value; const title = document.getElementById('taskTitle').value.trim(); const description = document.getElementById('taskDescription').value.trim(); if (!title) return; const path = getTasksCollectionPath(); const taskData = { title, description, updatedAt: serverTimestamp() }; if (id) await updateDoc(doc(db, path, id), taskData); else await addDoc(collection(db, path), { ...taskData, status: 'todo', createdAt: serverTimestamp() }); closeModal(taskModal); });
-        document.querySelectorAll('.tasks-container').forEach(column => { column.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('column-dragover'); }); column.addEventListener('dragleave', (e) => { e.currentTarget.classList.remove('column-dragover'); }); column.addEventListener('drop', async (e) => { e.preventDefault(); e.currentTarget.classList.remove('column-dragover'); const taskId = e.dataTransfer.getData('text/plain'); const newStatus = e.currentTarget.parentElement.dataset.status; await updateDoc(doc(db, getTasksCollectionPath(), taskId), { status: newStatus }); }); });
-        
-        // --- 啟動 ---
-        initializeApp();
-        lucide.createIcons();
-    </script>
-</body>
-</html>
+我們需要新增一條路徑來儲存這份清單：
+
+* **個人看板任務 (不變)**： `/users/{使用者ID}/tasks/{任務ID}`
+* **共享看板任務 (不變)**： `/shared_boards/{看板ID}/tasks/{任務ID}`
+* **使用者的看板清單 (新增)**： `/users/{使用者ID}/accessible_boards/{看板ID}`
+    * 這個路徑下的每個文件，都會儲存一個共享看板的 ID 和它的名稱。
+
+### 2. 更新 Firestore 安全規則
+
+為了讓使用者可以讀寫自己的看板清單，我們需要更新安全規則。請前往 Firebase 控制台 > Firestore Database > Rules，並用以下內容**完全替換**現有規則：
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 允許使用者讀寫自己ID下的所有內容
+    // (包括 tasks 和新的 accessible_boards 清單)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 任何已登入的使用者都可以讀寫共享看板的內容
+    match /shared_boards/{boardId}/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

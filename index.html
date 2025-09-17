@@ -20,11 +20,12 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
+    <!-- 登入畫面 -->
     <div id="login-container" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div class="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
             <h1 class="text-3xl font-bold mb-2 text-center text-gray-700">專案管理看板</h1>
             <p class="text-gray-500 mb-6 text-center">請使用管理員提供的帳號登入</p>
-            <form id="auth-form">
+            <form id="auth-form" onsubmit="return false;">
                 <div class="mb-4">
                     <label for="email" class="block text-gray-700 font-medium mb-2">電子郵件</label>
                     <input type="email" id="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required>
@@ -41,6 +42,7 @@
         </div>
     </div>
 
+    <!-- 主應用程式畫面 -->
     <div id="app-container" class="hidden container mx-auto p-4 md:p-8">
         <header class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
             <div class="flex items-center space-x-3">
@@ -49,7 +51,7 @@
                 </div>
                 <h1 id="boardTitle" class="text-2xl font-bold text-gray-700 truncate">我的看板</h1>
             </div>
-            <div class="flex items-center space-x-2 sm:space-x-4">
+            <div class="flex items-center space-x-2 sm:space-x-4 flex-wrap justify-center">
                 <button id="createSharedBoardBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">建立共享看板</button>
                 <button id="shareBoardBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition hidden">分享</button>
                 <button id="myBoardBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition hidden">我的看板</button>
@@ -69,10 +71,33 @@
         </footer>
     </div>
 
-    <!-- Modal (維持不變) -->
-    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md" id="modal-content"><h3 id="modalTitle" class="text-2xl font-bold mb-6">新增任務</h3><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskTitle" class="block text-gray-700 font-medium mb-2">任務標題</label><input type="text" id="taskTitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required></div><div class="mb-6"><label for="taskDescription" class="block text-gray-700 font-medium mb-2">任務描述</label><textarea id="taskDescription" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">取消</button><button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">儲存</button></div></form></div></div>
+    <!-- 新增/編輯任務 Modal -->
+    <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <h3 id="modalTitle" class="text-2xl font-bold mb-6">新增任務</h3>
+            <form id="taskForm">
+                <input type="hidden" id="taskId">
+                <div class="mb-4"><label for="taskTitle" class="block text-gray-700 font-medium mb-2">任務標題</label><input type="text" id="taskTitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required></div>
+                <div class="mb-6"><label for="taskDescription" class="block text-gray-700 font-medium mb-2">任務描述</label><textarea id="taskDescription" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea></div>
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">取消</button>
+                    <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <!-- 分享 Modal -->
-    <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md"><h3 class="text-2xl font-bold mb-4">分享看板</h3><p class="text-gray-600 mb-4">複製以下連結並傳送給協作者：</p><input type="text" id="shareLinkInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" readonly><div class="flex justify-end mt-4"><button id="closeShareModalBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">關閉</button></div></div></div>
+    <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md">
+            <h3 class="text-2xl font-bold mb-4">分享看板</h3>
+            <p class="text-gray-600 mb-4">複製以下連結並傳送給協作者：</p>
+            <input type="text" id="shareLinkInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" readonly>
+            <div class="flex justify-end mt-4">
+                <button id="closeShareModalBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">關閉</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -92,7 +117,7 @@
         let tasksUnsubscribe = null;
         let currentBoard = { type: 'private', id: null };
 
-        // DOM 元素
+        // --- DOM 元素 ---
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
         const boardTitle = document.getElementById('boardTitle');
@@ -103,7 +128,14 @@
         const shareModal = document.getElementById('shareModal');
         const shareLinkInput = document.getElementById('shareLinkInput');
         const closeShareModalBtn = document.getElementById('closeShareModalBtn');
+        const taskModal = document.getElementById('taskModal');
+        const modalContent = document.getElementById('modal-content');
+        const taskForm = document.getElementById('taskForm');
+        const cancelBtn = document.getElementById('cancelBtn');
 
+        // --- 核心函數 ---
+        
+        // 根據目前看板類型取得 Firestore 路徑
         function getTasksCollectionPath() {
             if (currentBoard.type === 'shared') {
                 return `shared_boards/${currentBoard.id}/tasks`;
@@ -111,6 +143,7 @@
             return `users/${userId}/tasks`;
         }
 
+        // 根據看板類型更新 UI 顯示
         function updateUIForBoardType() {
             if (currentBoard.type === 'shared') {
                 boardTitle.textContent = `共享看板`;
@@ -124,86 +157,31 @@
                 createSharedBoardBtn.classList.remove('hidden');
             }
         }
-
-        async function initializeAppAndListeners() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-            } catch (e) { console.error("Firebase initialization failed:", e); return; }
-            
-            onAuthStateChanged(auth, user => {
-                if (user) {
-                    userId = user.uid;
-                    userEmailSpan.textContent = user.email;
-                    
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const boardId = urlParams.get('boardId');
-
-                    if (boardId) {
-                        currentBoard = { type: 'shared', id: boardId };
-                    } else {
-                        currentBoard = { type: 'private', id: userId };
-                    }
-                    
-                    loginContainer.style.display = 'none';
-                    appContainer.classList.remove('hidden');
-                    updateUIForBoardType();
-                    setupTaskListener();
-                } else {
-                    loginContainer.style.display = 'flex';
-                    appContainer.classList.add('hidden');
-                    if (tasksUnsubscribe) tasksUnsubscribe();
-                }
-            });
-
-            // --- 事件監聽器 ---
-            document.getElementById('login-btn').addEventListener('click', async () => { /* ... */ });
-            document.getElementById('logout-btn').addEventListener('click', () => { signOut(auth); });
-            
-            createSharedBoardBtn.addEventListener('click', async () => {
-                const newBoardRef = doc(collection(db, 'shared_boards'));
-                const newBoardId = newBoardRef.id;
-                // 為了確保集合存在，可以先寫入一個假文件，但通常直接跳轉即可
-                window.location.href = `${window.location.pathname}?boardId=${newBoardId}`;
-            });
-
-            myBoardBtn.addEventListener('click', () => {
-                window.location.href = window.location.pathname;
-            });
-            
-            shareBoardBtn.addEventListener('click', () => {
-                shareLinkInput.value = window.location.href;
-                shareModal.classList.remove('hidden');
-                shareLinkInput.select();
-            });
-
-            closeShareModalBtn.addEventListener('click', () => {
-                shareModal.classList.add('hidden');
-            });
-        }
         
+        // 設定任務資料的即時監聽器
         function setupTaskListener() {
-            if (tasksUnsubscribe) tasksUnsubscribe();
+            if (tasksUnsubscribe) tasksUnsubscribe(); // 取消舊的監聽
             const path = getTasksCollectionPath();
             const tasksCollection = collection(db, path);
             tasksUnsubscribe = onSnapshot(tasksCollection, (snapshot) => {
                 document.querySelectorAll('.tasks-container').forEach(col => col.innerHTML = '');
                 snapshot.docs.forEach(doc => {
-                    const taskElement = renderTask({ id: doc.id, ...doc.data() });
-                    const container = document.getElementById(`${taskElement.taskData.status}-tasks`);
-                    if (container) container.appendChild(taskElement.card);
+                    const taskData = { id: doc.id, ...doc.data() };
+                    const taskElement = renderTask(taskData);
+                    const container = document.getElementById(`${taskData.status}-tasks`);
+                    if (container) container.appendChild(taskElement);
                 });
                 lucide.createIcons();
             });
         }
-        
+
+        // 渲染單一任務卡片
         function renderTask(task) {
             const taskCard = document.createElement('div');
             taskCard.id = task.id;
             taskCard.draggable = true;
             taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing';
-            taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2 task-description">${task.description}</p>`;
+            taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2 task-description">${task.description || ''}</p>`;
             
             taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -211,63 +189,14 @@
                 await deleteDoc(taskRef);
             });
             taskCard.addEventListener('click', () => openModal(task));
-            // Drag and drop event listeners
             taskCard.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', e.target.id); e.target.classList.add('task-dragging'); });
             taskCard.addEventListener('dragend', (e) => { e.target.classList.remove('task-dragging'); });
             
-            return { card: taskCard, taskData: task };
+            return taskCard;
         }
 
-        // --- 其他輔助函數與事件監聽器 (保持大致不變，但修改資料路徑) ---
-        const taskForm = document.getElementById('taskForm');
-        taskForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('taskId').value;
-            const title = document.getElementById('taskTitle').value.trim();
-            const description = document.getElementById('taskDescription').value.trim();
-            if (!title) return;
-            
-            const taskData = { title, description, updatedAt: serverTimestamp() };
-            const path = getTasksCollectionPath();
-
-            if (id) {
-                await updateDoc(doc(db, path, id), taskData);
-            } else {
-                await addDoc(collection(db, path), { ...taskData, status: 'todo', createdAt: serverTimestamp() });
-            }
-            closeModal();
-        });
-        
-        document.querySelectorAll('.tasks-container').forEach(column => {
-            column.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('column-dragover'); });
-            column.addEventListener('dragleave', (e) => { e.currentTarget.classList.remove('column-dragover'); });
-            column.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                e.currentTarget.classList.remove('column-dragover');
-                const taskId = e.dataTransfer.getData('text/plain');
-                const newStatus = e.currentTarget.parentElement.dataset.status;
-                await updateDoc(doc(db, getTasksCollectionPath(), taskId), { status: newStatus });
-            });
-        });
-        
-        // Modal and other listeners (omitted for brevity, they are standard)
-        const taskModal = document.getElementById('taskModal');
-        function openModal(task = null) { /* ... */ }
-        function closeModal() { /* ... */ }
-        document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
-        document.getElementById('cancelBtn').addEventListener('click', closeModal);
-        document.getElementById('login-btn').addEventListener('click', async () => { 
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                document.getElementById('auth-error').textContent = '';
-            } catch (error) {
-                document.getElementById('auth-error').textContent = '登入失敗，請檢查信箱或密碼。';
-            }
-        });
-        const modalContent = document.getElementById('modal-content');
-        openModal = function(task = null) {
+        // --- Modal 相關函數 (已修正) ---
+        function openModal(task = null) {
             taskForm.reset();
             if (task) {
                 document.getElementById('modalTitle').textContent = '編輯任務';
@@ -279,9 +208,106 @@
                 document.getElementById('taskId').value = '';
             }
             taskModal.classList.remove('hidden');
-        };
-        closeModal = function() { taskModal.classList.add('hidden'); };
+            setTimeout(() => {
+                taskModal.classList.add('opacity-100');
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
 
+        function closeModal() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            taskModal.classList.remove('opacity-100');
+            setTimeout(() => {
+                taskModal.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- 初始化與事件監聽器 ---
+        async function initializeAppAndListeners() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+            } catch (e) { console.error("Firebase initialization failed:", e); return; }
+            
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    userId = user.uid;
+                    userEmailSpan.textContent = user.email;
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const boardId = urlParams.get('boardId');
+                    currentBoard = boardId ? { type: 'shared', id: boardId } : { type: 'private', id: userId };
+                    loginContainer.style.display = 'none';
+                    appContainer.classList.remove('hidden');
+                    updateUIForBoardType();
+                    setupTaskListener();
+                } else {
+                    loginContainer.style.display = 'flex';
+                    appContainer.classList.add('hidden');
+                    if (tasksUnsubscribe) tasksUnsubscribe();
+                }
+            });
+
+            // 按鈕事件
+            document.getElementById('login-btn').addEventListener('click', async () => {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const errorDiv = document.getElementById('auth-error');
+                errorDiv.textContent = '';
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    errorDiv.textContent = '登入失敗，請檢查信箱或密碼。';
+                }
+            });
+            document.getElementById('logout-btn').addEventListener('click', () => { signOut(auth); });
+            createSharedBoardBtn.addEventListener('click', () => {
+                const newBoardRef = doc(collection(db, 'shared_boards'));
+                window.location.href = `${window.location.pathname}?boardId=${newBoardRef.id}`;
+            });
+            myBoardBtn.addEventListener('click', () => { window.location.href = window.location.pathname; });
+            shareBoardBtn.addEventListener('click', () => {
+                shareLinkInput.value = window.location.href;
+                shareModal.classList.remove('hidden');
+                shareLinkInput.select();
+            });
+            closeShareModalBtn.addEventListener('click', () => { shareModal.classList.add('hidden'); });
+            document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
+            cancelBtn.addEventListener('click', closeModal);
+
+            // 表單提交
+            taskForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('taskId').value;
+                const title = document.getElementById('taskTitle').value.trim();
+                const description = document.getElementById('taskDescription').value.trim();
+                if (!title) return;
+                const path = getTasksCollectionPath();
+                const taskData = { title, description, updatedAt: serverTimestamp() };
+                if (id) {
+                    await updateDoc(doc(db, path, id), taskData);
+                } else {
+                    await addDoc(collection(db, path), { ...taskData, status: 'todo', createdAt: serverTimestamp() });
+                }
+                closeModal();
+            });
+            
+            // 拖放事件
+            document.querySelectorAll('.tasks-container').forEach(column => {
+                column.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('column-dragover'); });
+                column.addEventListener('dragleave', (e) => { e.currentTarget.classList.remove('column-dragover'); });
+                column.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('column-dragover');
+                    const taskId = e.dataTransfer.getData('text/plain');
+                    const newStatus = e.currentTarget.parentElement.dataset.status;
+                    await updateDoc(doc(db, getTasksCollectionPath(), taskId), { status: newStatus });
+                });
+            });
+        }
+        
         // --- 啟動 ---
         initializeAppAndListeners();
         lucide.createIcons();

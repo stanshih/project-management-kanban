@@ -15,15 +15,24 @@
         .column-dragover { background-color: #f0f9ff; border-color: #38bdf8; }
         .tasks-container::-webkit-scrollbar { display: none; }
         .tasks-container { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* ▼▼▼ 修改處 #1：新增此 CSS 樣式 ▼▼▼ */
+        /* 讓文字保留換行並在需要時自動斷詞 */
+        .task-description {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        /* ▲▲▲ 修改處 #1 結束 ▲▲▲ */
+
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
+    <!-- 登入畫面 (維持不變) -->
     <div id="login-container" class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <div class="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
             <h1 class="text-3xl font-bold mb-2 text-center text-gray-700">專案管理看板</h1>
             <p class="text-gray-500 mb-6 text-center">請使用管理員提供的帳號登入</p>
-            
             <form id="auth-form">
                 <div class="mb-4">
                     <label for="email" class="block text-gray-700 font-medium mb-2">電子郵件</label>
@@ -33,9 +42,7 @@
                     <label for="password" class="block text-gray-700 font-medium mb-2">密碼</label>
                     <input type="password" id="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required>
                 </div>
-                
                 <div id="auth-error" class="mb-4 text-center text-red-500 text-sm h-5"></div>
-
                 <div class="flex">
                     <button type="button" id="login-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">登入</button>
                 </div>
@@ -43,7 +50,9 @@
         </div>
     </div>
 
+    <!-- 主應用程式畫面 (維持不變) -->
     <div id="app-container" class="hidden container mx-auto p-4 md:p-8">
+        <!-- Header, Main, Footer 等結構都維持不變 -->
         <header class="flex flex-col sm:flex-row justify-between items-center mb-8">
             <div class="flex items-center space-x-3 mb-4 sm:mb-0">
                 <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
@@ -59,18 +68,15 @@
                 <button id="logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">登出</button>
             </div>
         </header>
-
         <main id="board" class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white rounded-xl shadow-lg flex flex-col h-full" data-status="todo"><h2 class="text-lg font-bold p-4 border-b-4 border-red-400 flex items-center space-x-2"><i data-lucide="list" class="w-5 h-5 text-red-500"></i><span>待辦事項</span></h2><div id="todo-tasks" class="tasks-container p-4 space-y-4 overflow-y-auto flex-grow min-h-[200px] transition-colors duration-300"></div></div>
             <div class="bg-white rounded-xl shadow-lg flex flex-col h-full" data-status="inprogress"><h2 class="text-lg font-bold p-4 border-b-4 border-yellow-400 flex items-center space-x-2"><i data-lucide="loader-circle" class="w-5 h-5 text-yellow-500 animate-spin" style="animation-duration: 3s;"></i><span>進行中</span></h2><div id="inprogress-tasks" class="tasks-container p-4 space-y-4 overflow-y-auto flex-grow min-h-[200px] transition-colors duration-300"></div></div>
             <div class="bg-white rounded-xl shadow-lg flex flex-col h-full" data-status="done"><h2 class="text-lg font-bold p-4 border-b-4 border-green-400 flex items-center space-x-2"><i data-lucide="check-circle-2" class="w-5 h-5 text-green-500"></i><span>已完成</span></h2><div id="done-tasks" class="tasks-container p-4 space-y-4 overflow-y-auto flex-grow min-h-[200px] transition-colors duration-300"></div></div>
         </main>
-        
         <footer class="text-center mt-8 text-gray-500 text-sm">
             <p>使用者: <span id="userId" class="font-mono bg-gray-200 px-2 py-1 rounded">載入中...</span></p>
         </footer>
     </div>
-
     <div id="taskModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden transition-opacity duration-300"><div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" id="modal-content"><h3 id="modalTitle" class="text-2xl font-bold mb-6">新增任務</h3><form id="taskForm"><input type="hidden" id="taskId"><div class="mb-4"><label for="taskTitle" class="block text-gray-700 font-medium mb-2">任務標題</label><input type="text" id="taskTitle" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required></div><div class="mb-6"><label for="taskDescription" class="block text-gray-700 font-medium mb-2">任務描述</label><textarea id="taskDescription" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea></div><div class="flex justify-end space-x-4"><button type="button" id="cancelBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg transition">取消</button><button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">儲存</button></div></form></div></div>
     
     <script type="module">
@@ -78,6 +84,7 @@
         import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // Firebase 設定和變數宣告 (維持不變)
         const firebaseConfig = {
           apiKey: "AIzaSyD648jO8xViAhhsDmUynDe6tY7IypYwzAU",
           authDomain: "my-project-kanban-fae66.firebaseapp.com",
@@ -86,11 +93,10 @@
           messagingSenderId: "753453126057",
           appId: "1:753453126057:web:70e63a3d12571e48e734b8",
         };
-     
         let db, auth;
         let userId;
         let tasksUnsubscribe = null;
-
+        // DOM 元素獲取 (維持不變)
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
         const loginBtn = document.getElementById('login-btn');
@@ -99,7 +105,42 @@
         const passwordInput = document.getElementById('password');
         const authErrorDiv = document.getElementById('auth-error');
         const userIdSpan = document.getElementById('userId');
-        
+
+        // 渲染單一任務卡片函數
+        function renderTask(task) {
+            const taskCard = document.createElement('div');
+            taskCard.id = task.id;
+            taskCard.draggable = true;
+            taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing transition-shadow duration-200 hover:shadow-md';
+            
+            // ▼▼▼ 修改處 #2：在 class 中加入 "task-description" ▼▼▼
+            taskCard.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <h4 class="font-bold text-gray-800">${task.title}</h4>
+                    <button class="delete-task-btn text-gray-400 hover:text-red-500 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <p class="text-sm text-gray-600 mt-2 task-description">${task.description}</p> 
+            `;
+            // ▲▲▲ 修改處 #2 結束 ▲▲▲
+
+            // 加上事件監聽器
+            taskCard.addEventListener('dragstart', handleDragStart);
+            taskCard.addEventListener('dragend', handleDragEnd);
+            
+            taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskRef = doc(db, `users/${userId}/tasks`, task.id);
+                await deleteDoc(taskRef);
+            });
+
+            taskCard.addEventListener('click', () => openModal(task));
+
+            return taskCard;
+        }
+
+        // --- 以下所有 JavaScript 程式碼都維持不變 ---
         async function initializeAppAndListeners() {
             try {
                 const app = initializeApp(firebaseConfig);
@@ -154,11 +195,9 @@
             });
         }
 
-        // --- 以下為輔助函數，保持不變 ---
         const taskModal = document.getElementById('taskModal'); const taskForm = document.getElementById('taskForm'); const addTaskBtn = document.getElementById('addTaskBtn'); const cancelBtn = document.getElementById('cancelBtn'); const modalContent = document.getElementById('modal-content'); const modalTitle = document.getElementById('modalTitle'); const taskIdInput = document.getElementById('taskId'); const taskTitleInput = document.getElementById('taskTitle'); const taskDescriptionInput = document.getElementById('taskDescription');
         function openModal(task = null) { taskForm.reset(); if (task) { modalTitle.textContent = '編輯任務'; taskIdInput.value = task.id; taskTitleInput.value = task.title; taskDescriptionInput.value = task.description; } else { modalTitle.textContent = '新增任務'; taskIdInput.value = ''; } taskModal.classList.remove('hidden'); setTimeout(() => { taskModal.classList.add('opacity-100'); modalContent.classList.remove('scale-95', 'opacity-0'); modalContent.classList.add('scale-100', 'opacity-100'); }, 10); }
         function closeModal() { modalContent.classList.remove('scale-100', 'opacity-100'); modalContent.classList.add('scale-95', 'opacity-0'); taskModal.classList.remove('opacity-100'); setTimeout(() => { taskModal.classList.add('hidden'); }, 300); }
-        function renderTask(task) { const taskCard = document.createElement('div'); taskCard.id = task.id; taskCard.draggable = true; taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm cursor-grab active:cursor-grabbing transition-shadow duration-200 hover:shadow-md'; taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2">${task.description}</p>`; taskCard.addEventListener('dragstart', handleDragStart); taskCard.addEventListener('dragend', handleDragEnd); taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => { e.stopPropagation(); const taskRef = doc(db, `users/${userId}/tasks`, task.id); await deleteDoc(taskRef); }); taskCard.addEventListener('click', () => openModal(task)); return taskCard; }
         function handleDragStart(e) { e.dataTransfer.setData('text/plain', e.target.id); setTimeout(() => e.target.classList.add('task-dragging'), 0); }
         function handleDragEnd(e) { e.target.classList.remove('task-dragging'); }
         function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('column-dragover'); }
@@ -173,4 +212,3 @@
     </script>
 </body>
 </html>
-

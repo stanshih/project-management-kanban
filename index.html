@@ -132,7 +132,7 @@
                             window.location.href = window.location.pathname;
                             return;
                         }
-                        const members = boardSnap.data().members || {};
+                        let members = boardSnap.data().members || {};
                         if (!members[userId]) {
                             members[userId] = 'viewer';
                             await updateDoc(boardRef, { members });
@@ -149,7 +149,6 @@
                     await populateBoardSelector();
                     setupBoardListener();
                     setupTaskListener();
-                    updateUIForPermissions();
                 } else {
                     loginContainer.style.display = 'flex';
                     appContainer.classList.add('hidden');
@@ -159,13 +158,61 @@
             });
 
             // Event Listeners
-            document.getElementById('login-btn').addEventListener('click', async () => { /* ... login logic ... */ });
+            document.getElementById('login-btn').addEventListener('click', async () => {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const errorDiv = document.getElementById('auth-error');
+                errorDiv.textContent = '';
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) { errorDiv.textContent = '登入失敗，請檢查信箱或密碼。'; }
+            });
             document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             document.getElementById('cancelBtn').addEventListener('click', () => closeModal(taskModal));
             document.getElementById('cancelNewBoardBtn').addEventListener('click', () => closeModal(newBoardModal));
             document.getElementById('closeShareModalBtn').addEventListener('click', () => closeModal(shareModal));
             document.getElementById('closeMembersModalBtn').addEventListener('click', () => closeModal(manageMembersModal));
+            manageMembersBtn.addEventListener('click', async () => {
+                const boardRef = doc(db, 'shared_boards', currentBoard.id);
+                const boardSnap = await getDoc(boardRef);
+                if(boardSnap.exists()) {
+                    renderMembersList(boardSnap.data());
+                    manageMembersModal.classList.remove('hidden');
+                }
+            });
+
+            document.getElementById('inviteBtn').addEventListener('click', async () => {
+                const emailToInvite = document.getElementById('inviteEmail').value.trim();
+                const errorDiv = document.getElementById('inviteError');
+                errorDiv.textContent = '';
+                if (!emailToInvite) return;
+
+                const usersRef = collection(db, "users");
+                const q = query(usersRef, where("email", "==", emailToInvite));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    errorDiv.textContent = '找不到該 Email 的使用者。';
+                    return;
+                }
+                const invitedUserId = querySnapshot.docs[0].id;
+                
+                const boardRef = doc(db, 'shared_boards', currentBoard.id);
+                await runTransaction(db, async (transaction) => {
+                    const boardDoc = await transaction.get(boardRef);
+                    if (!boardDoc.exists()) throw "Document does not exist!";
+                    const members = boardDoc.data().members || {};
+                    if(members[invitedUserId]) {
+                        errorDiv.textContent = '該使用者已經是成員了。';
+                        return;
+                    }
+                    members[invitedUserId] = 'viewer'; // Default role
+                    transaction.update(boardRef, { members });
+                    await addBoardToUserListIfNeeded(currentBoard.id, boardDoc.data().name, invitedUserId);
+                });
+                document.getElementById('inviteEmail').value = '';
+            });
         }
 
         function setupBoardListener() {
@@ -181,7 +228,7 @@
                     const members = boardData.members || {};
                     currentBoard.role = members[userId] || 'viewer';
                     updateUIForPermissions();
-                    if(manageMembersModal.style.display !== 'hidden') {
+                    if(!manageMembersModal.classList.contains('hidden')) {
                        renderMembersList(boardData);
                     }
                 }
@@ -201,9 +248,94 @@
             
             userRoleSpan.textContent = currentBoard.type === 'shared' ? `(${role})` : '(個人)';
         }
-
-        // --- All other functions (populateBoardSelector, renderTask, modals, etc.) ---
         
+        async function populateBoardSelector() {
+            boardSelector.innerHTML = '';
+            boardSelector.add(new Option('我的私人看板', 'private'));
+            const snapshot = await getDocs(collection(db, `users/${userId}/accessible_boards`));
+            snapshot.forEach(doc => boardSelector.add(new Option(doc.data().name, doc.id)));
+            boardSelector.add(new Option('+ 建立新的共享看板', 'create_new'));
+            boardSelector.value = currentBoard.type === 'private' ? 'private' : currentBoard.id;
+        }
+        
+        async function addBoardToUserListIfNeeded(boardId, boardName, targetUserId = userId) {
+             const boardRef = doc(db, `users/${targetUserId}/accessible_boards`, boardId);
+            if (!(await getDoc(boardRef)).exists()) {
+                await setDoc(boardRef, { name: boardName });
+            }
+        }
+        
+        function setupTaskListener() {
+            if (tasksUnsubscribe) tasksUnsubscribe();
+            const tasksCollection = collection(db, getTasksCollectionPath());
+            tasksUnsubscribe = onSnapshot(tasksCollection, (snapshot) => {
+                document.querySelectorAll('.tasks-container').forEach(col => col.innerHTML = '');
+                snapshot.docs.forEach(doc => {
+                    const taskElement = renderTask({ id: doc.id, ...doc.data() });
+                    const container = document.getElementById(`${taskElement.taskData.status}-tasks`);
+                    if (container) container.appendChild(taskElement.card);
+                });
+                lucide.createIcons();
+            });
+        }
+        
+        function renderTask(task) {
+            const taskCard = document.createElement('div');
+            taskCard.id = task.id;
+            const isViewer = currentBoard.role === 'viewer';
+            taskCard.draggable = !isViewer;
+            taskCard.className = 'task-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm transition-shadow hover:shadow-md ' + (isViewer ? 'cursor-default' : 'cursor-grab active:cursor-grabbing');
+            taskCard.innerHTML = `<div class="flex justify-between items-start"><h4 class="font-bold text-gray-800">${task.title}</h4><button class="delete-task-btn text-gray-400 hover:text-red-500" style="display: ${isViewer ? 'none' : 'block'}"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div><p class="text-sm text-gray-600 mt-2 task-description">${task.description || ''}</p>`;
+            taskCard.querySelector('.delete-task-btn').addEventListener('click', async (e) => { e.stopPropagation(); await deleteDoc(doc(db, getTasksCollectionPath(), task.id)); });
+            taskCard.addEventListener('click', () => !isViewer && openModal(task));
+            taskCard.addEventListener('dragstart', (e) => { if(!isViewer) { e.dataTransfer.setData('text/plain', e.target.id); e.target.classList.add('task-dragging'); }});
+            taskCard.addEventListener('dragend', (e) => { e.target.classList.remove('task-dragging'); });
+            return { card: taskCard, taskData: task };
+        }
+
+        function openModal(task = null) {
+            taskForm.reset();
+            if (task) {
+                document.getElementById('modalTitle').textContent = '編輯任務';
+                document.getElementById('taskId').value = task.id;
+                document.getElementById('taskTitle').value = task.title;
+                document.getElementById('taskDescription').value = task.description;
+            } else {
+                document.getElementById('modalTitle').textContent = '新增任務';
+                document.getElementById('taskId').value = '';
+            }
+            taskModal.classList.remove('hidden');
+        }
+
+        function closeModal(modalElement) { modalElement.classList.add('hidden'); }
+        
+        async function renderMembersList(boardData) {
+            const membersListDiv = document.getElementById('membersList');
+            membersListDiv.innerHTML = '';
+            const members = boardData.members || {};
+            for (const memberId in members) {
+                const userRef = doc(db, "users", memberId);
+                const userSnap = await getDoc(userRef);
+                const userEmail = userSnap.exists() ? userSnap.data().email : '未知使用者';
+                
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
+                memberDiv.innerHTML = `
+                    <span class="text-gray-700">${userEmail}</span>
+                    <div class="flex items-center space-x-2">
+                        <select class="role-selector border-gray-300 rounded" data-id="${memberId}">
+                            <option value="owner" ${members[memberId] === 'owner' ? 'selected' : ''}>擁有者</option>
+                            <option value="editor" ${members[memberId] === 'editor' ? 'selected' : ''}>編輯者</option>
+                            <option value="viewer" ${members[memberId] === 'viewer' ? 'selected' : ''}>檢視者</option>
+                        </select>
+                        <button class="remove-member-btn text-red-500 hover:text-red-700" data-id="${memberId}">&times;</button>
+                    </div>
+                `;
+                membersListDiv.appendChild(memberDiv);
+            }
+        }
+        
+        // --- Initialize App and Event Listeners ---
         startApp();
         lucide.createIcons();
     </script>

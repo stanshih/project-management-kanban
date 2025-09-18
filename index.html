@@ -62,7 +62,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, runTransaction, arrayUnion, arrayRemove, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = { apiKey: "AIzaSyD648jO8xViAhhsDmUynDe6tY7IypYwzAU", authDomain: "my-project-kanban-fae66.firebaseapp.com", projectId: "my-project-kanban-fae66", storageBucket: "my-project-kanban-fae66.firebasestorage.app", messagingSenderId: "753453126057", appId: "1:753453126057:web:70e63a3d12571e48e734b8" };
@@ -100,6 +100,7 @@
             [document.getElementById('dashboard-logout-btn'), document.getElementById('board-logout-btn')].forEach(b => b.addEventListener('click', () => signOut(auth)));
             document.getElementById('create-new-board').addEventListener('click', handleCreateNewBoard);
             document.getElementById('back-to-dashboard-btn').addEventListener('click', () => { window.history.pushState({}, '', window.location.pathname); renderDashboard(); });
+            document.getElementById('manage-members-btn').addEventListener('click', () => membersModal.element.classList.remove('hidden'));
             cardModal.closeBtn.addEventListener('click', () => cardModal.element.classList.add('hidden'));
             membersModal.closeBtn.addEventListener('click', () => membersModal.element.classList.add('hidden'));
         }
@@ -107,7 +108,7 @@
         function renderDashboard() {
             showView('dashboard');
             const boardsGrid = document.getElementById('boards-grid');
-            const q = query(collection(db, 'boards'), where('members.' + userId, 'in', ['owner', 'editor', 'viewer']));
+            const q = query(collection(db, 'boards'), where('memberIds', 'array-contains', userId));
             const unsub = onSnapshot(q, async (snapshot) => {
                 document.querySelectorAll('.board-card').forEach(c => c.remove());
                 for (const docSnap of snapshot.docs) {
@@ -118,7 +119,7 @@
                     card.dataset.id = docSnap.id;
                     card.addEventListener('click', () => { window.history.pushState({}, '', `?boardId=${docSnap.id}`); renderBoardView(docSnap.id); });
                     const membersDiv = card.querySelector('div');
-                    const publicDataPromises = Object.keys(boardData.members).slice(0, 5).map(id => getDoc(doc(db, 'users_public_data', id)));
+                    const publicDataPromises = boardData.memberIds.slice(0, 5).map(id => getDoc(doc(db, 'users_public_data', id)));
                     const publicDataDocs = await Promise.all(publicDataPromises);
                     publicDataDocs.forEach(publicDoc => {
                         if (publicDoc.exists()) {
@@ -138,12 +139,7 @@
         async function handleCreateNewBoard() {
             const boardName = prompt("請輸入新看板的名稱：");
             if (boardName && boardName.trim()) {
-                await addDoc(collection(db, 'boards'), {
-                    name: boardName.trim(),
-                    ownerId: userId,
-                    members: { [userId]: 'owner' },
-                    createdAt: serverTimestamp()
-                });
+                await addDoc(collection(db, 'boards'), { name: boardName.trim(), ownerId: userId, members: { [userId]: 'owner' }, memberIds: [userId], createdAt: serverTimestamp() });
             }
         }
 
@@ -152,24 +148,27 @@
             currentBoardId = boardId;
             const boardNameHeader = document.getElementById('board-name-header');
             const listsContainer = document.getElementById('lists-container');
-            const addListForm = document.getElementById('add-new-list-form');
+            const addListForm = document.createElement('div');
+            addListForm.id = 'add-new-list-form';
+            addListForm.className = 'bg-white bg-opacity-80 rounded-lg p-2 w-72 shrink-0';
+            addListForm.innerHTML = `<input id="new-list-name-input" class="w-full p-2 border-2 border-transparent rounded focus:border-blue-500" placeholder="＋ 新增其他列表">`;
             listsContainer.innerHTML = ''; 
             listsContainer.appendChild(addListForm);
+            
+            addListForm.querySelector('input').addEventListener('keypress', async(e)=>{if(e.key==='Enter'){const i=e.target,n=i.value.trim();if(n&&currentBoardId){const q=query(collection(db,'lists'),where('boardId','==',currentBoardId)),s=await getDocs(q);await addDoc(collection(db,'lists'),{name:n,boardId:currentBoardId,order:s.size});i.value=''}}});
 
             const boardUnsub = onSnapshot(doc(db, 'boards', boardId), (docSnap) => {
-                if (!docSnap.exists() || !docSnap.data().members[userId]) {
-                    alert('您無權存取此看板或看板已被刪除');
-                    window.history.pushState({}, '', window.location.pathname);
-                    renderDashboard();
-                    return;
-                }
+                if (!docSnap.exists() || !docSnap.data().memberIds.includes(userId)) { alert('您無權存取此看板或看板已被刪除'); window.history.pushState({}, '', window.location.pathname); renderDashboard(); return; }
                 const boardData = docSnap.data();
                 currentBoardRole = boardData.members[userId];
                 boardNameHeader.value = boardData.name;
                 boardNameHeader.disabled = currentBoardRole !== 'owner';
+                renderMembersModal(boardData);
                 updateUIForRole();
             });
             activeListeners.push(boardUnsub);
+            
+            boardNameHeader.addEventListener('blur', () => { const newName = boardNameHeader.value.trim(); if (newName && currentBoardRole === 'owner') updateDoc(doc(db, 'boards', boardId), { name: newName }); });
 
             const listsQuery = query(collection(db, 'lists'), where('boardId', '==', boardId), orderBy('order'));
             const listsUnsub = onSnapshot(listsQuery, (snapshot) => {
@@ -184,50 +183,33 @@
         function updateUIForRole() {
             const isViewer = currentBoardRole === 'viewer';
             const isOwner = currentBoardRole === 'owner';
-            document.querySelectorAll('.list-column input, .list-column button, .list-column textarea, #add-new-list-form').forEach(el => el.disabled = isViewer);
+            const canEdit = isOwner || currentBoardRole === 'editor';
+            document.querySelectorAll('.list-column input, .list-column button, .list-column textarea, #add-new-list-form').forEach(el => el.disabled = !canEdit);
             document.getElementById('manage-members-btn').style.display = isOwner ? 'block' : 'none';
-            document.getElementById('add-new-list-form').style.display = isViewer ? 'none' : 'block';
+            document.getElementById('add-new-list-form').style.display = canEdit ? 'block' : 'none';
             mainBoard.classList.toggle('viewer-mode', isViewer);
         }
         
         function renderList(listDoc) {
-            const d = listDoc.data(), id = listDoc.id, t = document.getElementById('list-column-template').content.cloneNode(true), c = t.querySelector('.list-column');
-            c.dataset.id = id;
-            const n = c.querySelector('.list-name-input');
-            n.value = d.name;
+            const d = listDoc.data(), id = listDoc.id, t = document.getElementById('list-column-template').content.cloneNode(true), c = t.querySelector('.list-column'); c.dataset.id = id;
+            const n = c.querySelector('.list-name-input'); n.value = d.name;
             n.addEventListener('blur', () => { const v = n.value.trim(); if(v && v !== d.name) updateDoc(doc(db, 'lists', id), { name: v }); else n.value = d.name; });
             c.querySelector('.delete-list-btn').addEventListener('click', async () => { if(confirm(`確定要刪除列表 "${d.name}" 嗎？所有卡片將一併刪除。`)) await deleteDoc(doc(db, 'lists', id)); });
-            const cs = c.querySelector('.cards-container');
-            initCardSorting(id, cs);
+            const cs = c.querySelector('.cards-container'); initCardSorting(id, cs);
             const ab = c.querySelector('.add-card-btn'), af = c.querySelector('.add-card-form'), ct = af.querySelector('textarea'), sb = af.querySelector('.add-card-submit-btn'), cb = af.querySelector('.add-card-cancel-btn');
             ab.addEventListener('click', () => { af.classList.remove('hidden'); ab.classList.add('hidden'); ct.focus(); });
             cb.addEventListener('click', () => { af.classList.add('hidden'); ab.classList.remove('hidden'); ct.value = ''; });
-            sb.addEventListener('click', async () => {
-                const v = ct.value.trim();
-                if(v) {
-                    const q = query(collection(db, 'cards'), where('listId', '==', id));
-                    const s = await getDocs(q);
-                    await addDoc(collection(db, 'cards'), { title: v, boardId: d.boardId, listId: id, order: s.size, createdAt: serverTimestamp(), createdBy: userEmail });
-                    ct.value = ''; ct.focus();
-                }
-            });
+            sb.addEventListener('click', async () => { const v = ct.value.trim(); if(v) { const q = query(collection(db, 'cards'), where('listId', '==', id)), s = await getDocs(q); await addDoc(collection(db, 'cards'), { title: v, boardId: d.boardId, listId: id, order: s.size, createdAt: serverTimestamp(), createdBy: userEmail }); ct.value = ''; ct.focus(); } });
             const cq = query(collection(db, 'cards'), where('listId', '==', id), orderBy('order'));
             const cu = onSnapshot(cq, (s) => { cs.innerHTML = ''; s.forEach(cd => renderCard(cs, cd)); });
-            activeListeners.push(cu);
-            document.getElementById('add-new-list-form').before(c);
-            updateUIForRole(); // Ensure new lists also get correct permissions
+            activeListeners.push(cu); document.getElementById('add-new-list-form').before(c); updateUIForRole();
         }
 
-        function renderCard(container, cardDoc) {
-            const d = cardDoc.data(), id = cardDoc.id, t = document.getElementById('card-item-template').content.cloneNode(true), c = t.querySelector('.card-item');
-            c.dataset.id = id; c.textContent = d.title;
-            c.addEventListener('click', () => openCardModal(id));
-            container.appendChild(c);
-        }
+        function renderCard(container, cardDoc) { const d = cardDoc.data(), id = cardDoc.id, t = document.getElementById('card-item-template').content.cloneNode(true), c = t.querySelector('.card-item'); c.dataset.id = id; c.textContent = d.title; c.addEventListener('click', () => openCardModal(id)); container.appendChild(c); }
 
-        function initListSorting() { const l = document.getElementById('lists-container'); if(listSortable) listSortable.destroy(); listSortable = new Sortable(l, { animation: 150, ghostClass: 'ghost-list', filter: '#add-new-list-form', onEnd: async(e) => { if(currentBoardRole === 'viewer') return; const i = e.target.querySelectorAll('.list-column'), b = writeBatch(db); i.forEach((t, x) => { b.update(doc(db, 'lists', t.dataset.id), { order: x }) }); await b.commit() } }); }
+        function initListSorting() { const l = document.getElementById('lists-container'); if(listSortable) listSortable.destroy(); listSortable = new Sortable(l, { animation: 150, ghostClass: 'ghost-list', filter: '#add-new-list-form', onEnd: async(e) => { if(currentBoardRole === 'viewer') return; const i = e.target.querySelectorAll('.list-column'), b = writeBatch(db); i.forEach((t, x) => b.update(doc(db, 'lists', t.dataset.id), { order: x })); await b.commit(); } }); }
         function initCardSorting(listId, container) { const s = new Sortable(container, { group: 'cards', animation: 150, ghostClass: 'ghost-card', onEnd: async(e) => { if(currentBoardRole === 'viewer') return; const { item, from, to } = e, cId = item.dataset.id, fId = from.closest('.list-column').dataset.id, tId = to.closest('.list-column').dataset.id, b = writeBatch(db); if (fId === tId) Array.from(to.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); else { b.update(doc(db, 'cards', cId), { listId: tId }); Array.from(from.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); Array.from(to.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); } await b.commit(); } }); cardSortables.push(s); }
-
+        
         let activeCardUnsubs = [];
         async function openCardModal(cardId) {
             activeCardUnsubs.forEach(unsub => unsub()); activeCardUnsubs = [];
@@ -237,38 +219,80 @@
             const cardUnsub = onSnapshot(cardRef, (docSnap) => {
                 if(docSnap.exists()){
                     const data = docSnap.data();
-                    cardModal.title.value = data.title;
-                    cardModal.description.value = data.description || '';
-                    cardModal.saveDescBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                    cardModal.saveDescBtn.disabled = true;
-                    // Disable inputs if viewer
-                    const isViewer = currentBoardRole === 'viewer';
-                    cardModal.title.disabled = isViewer;
-                    cardModal.description.disabled = isViewer;
-                    cardModal.attachmentUrl.disabled = isViewer;
-                    cardModal.addAttachmentBtn.disabled = isViewer;
-                    cardModal.commentInput.disabled = isViewer;
-                    cardModal.addCommentBtn.disabled = isViewer;
-                    cardModal.deleteCardBtn.style.display = isViewer ? 'none' : 'block';
+                    cardModal.title.value = data.title; cardModal.description.value = data.description || '';
+                    cardModal.saveDescBtn.classList.add('opacity-50', 'cursor-not-allowed'); cardModal.saveDescBtn.disabled = true;
+                    const canEdit = currentBoardRole === 'owner' || currentBoardRole === 'editor';
+                    [cardModal.title, cardModal.description, cardModal.attachmentUrl, cardModal.addAttachmentBtn, cardModal.commentInput, cardModal.addCommentBtn].forEach(el => el.disabled = !canEdit);
+                    cardModal.deleteCardBtn.style.display = canEdit ? 'block' : 'none';
                 }
             });
             activeCardUnsubs.push(cardUnsub);
             
-            // Render Attachments
             const attachmentsQuery = query(collection(db, 'cards', cardId, 'attachments'), orderBy('createdAt'));
-            const attachmentsUnsub = onSnapshot(attachmentsQuery, (snapshot) => { /* ... */ });
+            const attachmentsUnsub = onSnapshot(attachmentsQuery, (s) => { cardModal.attachments.innerHTML = ''; s.forEach(d => renderAttachment(d)); });
             activeCardUnsubs.push(attachmentsUnsub);
 
-            // Render Comments
-            const commentsQuery = query(collection(db, 'cards', cardId, 'comments'), orderBy('createdAt'));
-            const commentsUnsub = onSnapshot(commentsQuery, (snapshot) => { /* ... */ });
+            const commentsQuery = query(collection(db, 'cards', cardId, 'comments'), orderBy('createdAt', 'desc'));
+            const commentsUnsub = onSnapshot(commentsQuery, (s) => { cardModal.comments.innerHTML = ''; s.forEach(d => renderComment(d)); });
             activeCardUnsubs.push(commentsUnsub);
             
-            // Event Listeners for Modal
-            // ...
+            const onDescChange = () => { cardModal.saveDescBtn.disabled = false; cardModal.saveDescBtn.classList.remove('opacity-50', 'cursor-not-allowed'); };
+            cardModal.description.addEventListener('input', onDescChange, { once: true });
+
+            cardModal.saveDescBtn.onclick = async () => { await updateDoc(cardRef, { description: cardModal.description.value }); cardModal.description.removeEventListener('input', onDescChange); };
+            cardModal.title.onblur = async () => await updateDoc(cardRef, { title: cardModal.title.value });
+            cardModal.deleteCardBtn.onclick = async () => { if(confirm('確定要刪除此卡片嗎？')) { await deleteDoc(cardRef); cardModal.element.classList.add('hidden'); }};
+            cardModal.addAttachmentBtn.onclick = async () => { const url = cardModal.attachmentUrl.value.trim(); if (url) { await addDoc(collection(db, 'cards', cardId, 'attachments'), { url, createdAt: serverTimestamp(), createdBy: userEmail, boardId: currentBoardId }); cardModal.attachmentUrl.value = ''; }};
+            cardModal.addCommentBtn.onclick = async () => { const text = cardModal.commentInput.value.trim(); if (text) { await addDoc(collection(db, 'cards', cardId, 'comments'), { text, createdAt: serverTimestamp(), createdBy: userEmail, boardId: currentBoardId }); cardModal.commentInput.value = ''; }};
         }
         
-        // --- App Initialization ---
+        function renderAttachment(docSnap) { const d=docSnap.data(), t=document.getElementById('attachment-item-template').content.cloneNode(true), l=t.querySelector('a'); l.href=d.url; l.textContent=d.url; t.querySelector('.remove-attachment-btn').addEventListener('click', async()=>await deleteDoc(docSnap.ref)); cardModal.attachments.appendChild(t); }
+        function renderComment(docSnap) { const d=docSnap.data(), t=document.getElementById('comment-item-template').content.cloneNode(true), c=t.querySelector('.comment-item'); c.querySelector('.font-bold').textContent=d.createdBy; c.querySelector('.text-xs').textContent=new Date(d.createdAt?.toMillis() || Date.now()).toLocaleString(); c.querySelector('p').textContent=d.text; cardModal.comments.appendChild(t); }
+
+        async function renderMembersModal(boardData) {
+            membersModal.list.innerHTML = '';
+            const members = boardData.members || {};
+            for (const memberId in members) {
+                const publicDoc = await getDoc(doc(db, 'users_public_data', memberId));
+                if (!publicDoc.exists()) continue;
+
+                const memberEmail = publicDoc.data().email;
+                const template = document.getElementById('member-item-template').content.cloneNode(true);
+                const item = template.querySelector('div');
+                item.querySelector('span').textContent = `${memberEmail} ${memberId === userId ? '(您)' : ''}`;
+                const selector = item.querySelector('select');
+                const removeBtn = item.querySelector('button');
+
+                if (memberId === boardData.ownerId) {
+                    selector.outerHTML = `<span class="font-semibold text-gray-500">擁有者</span>`;
+                    removeBtn.remove();
+                } else {
+                    ['editor', 'viewer'].forEach(role => selector.add(new Option(role.charAt(0).toUpperCase() + role.slice(1), role)));
+                    selector.value = members[memberId];
+                    selector.dataset.id = memberId;
+                    removeBtn.dataset.id = memberId;
+                }
+                membersModal.list.appendChild(item);
+            }
+        }
+        
+        membersModal.list.addEventListener('change', async (e) => { if(e.target.classList.contains('role-selector')) { await updateDoc(doc(db, 'boards', currentBoardId), { [`members.${e.target.dataset.id}`]: e.target.value }); } });
+        membersModal.list.addEventListener('click', async (e) => { const btn = e.target.closest('.remove-member-btn'); if(btn) { const idToRemove = btn.dataset.id; if(confirm('確定要移除這位成員嗎？')) { await updateDoc(doc(db, 'boards', currentBoardId), { [`members.${idToRemove}`]: deleteField(), memberIds: arrayRemove(idToRemove) }); } } });
+        membersModal.inviteBtn.addEventListener('click', async () => {
+            const emailToInvite = membersModal.inviteEmail.value.trim();
+            membersModal.error.textContent = '';
+            if (!emailToInvite) return;
+            const q = query(collection(db, 'users_public_data'), where("email", "==", emailToInvite));
+            const querySnapshot = await getDocs(q);
+            if (querySnapshot.empty) { membersModal.error.textContent = '找不到該 Email 的使用者。'; return; }
+            const invitedUserId = querySnapshot.docs[0].id;
+            const boardRef = doc(db, 'boards', currentBoardId);
+            const boardSnap = await getDoc(boardRef);
+            if (boardSnap.data().memberIds.includes(invitedUserId)) { membersModal.error.textContent = '該使用者已經是成員了。'; return; }
+            await updateDoc(boardRef, { [`members.${invitedUserId}`]: 'viewer', memberIds: arrayUnion(invitedUserId) });
+            membersModal.inviteEmail.value = '';
+        });
+        
         startApp();
     </script>
 </body>

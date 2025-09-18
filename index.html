@@ -9,208 +9,267 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 引入 SortableJS 用於拖放功能 -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; }
-        .ghost-card, .ghost-list {
-            opacity: 0.5;
-            background: #c8ebfb;
-            border: 1px dashed #3498db;
-        }
-        .board-bg {
-            background-color: #0079BF;
-            background-image: linear-gradient(to bottom right, #0079BF, #005A8E);
-        }
-        #lists-container {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        #lists-container::-webkit-scrollbar {
-            display: none;
-        }
-        .viewer-mode .card-item, .viewer-mode .list-column {
-             cursor: default !important;
-        }
+        .ghost-card, .ghost-list { opacity: 0.5; background: #c8ebfb; border: 1px dashed #3498db; }
+        .board-bg { background-color: #0079BF; background-image: linear-gradient(to bottom right, #0079BF, #005A8E); }
+        #lists-container { -ms-overflow-style: none; scrollbar-width: none; }
+        #lists-container::-webkit-scrollbar { display: none; }
+        .viewer-mode .card-item, .viewer-mode .list-column .list-name-input, .viewer-mode .add-card-btn, .viewer-mode .delete-list-btn { cursor: default !important; pointer-events: none; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- 全域載入動畫 -->
     <div id="loading-spinner" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
         <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
     </div>
 
-    <!-- 登入畫面 -->
     <div id="login-view" class="hidden">
         <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
             <div class="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
                 <h1 class="text-3xl font-bold mb-2 text-center text-gray-700">專案管理平台</h1>
                 <p class="text-gray-500 mb-6 text-center">請登入以繼續</p>
-                <form id="auth-form" onsubmit="return false;">
-                    <div class="mb-4"><label for="email" class="block text-gray-700 font-medium mb-2">電子郵件</label><input type="email" id="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></div>
-                    <div class="mb-6"><label for="password" class="block text-gray-700 font-medium mb-2">密碼</label><input type="password" id="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></div>
-                    <div id="auth-error" class="mb-4 text-center text-red-500 text-sm h-5"></div>
-                    <div class="flex"><button type="button" id="login-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">登入</button></div>
-                </form>
+                <form id="auth-form" onsubmit="return false;"><div class="mb-4"><label for="email" class="block text-gray-700 font-medium mb-2">電子郵件</label><input type="email" id="email" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></div><div class="mb-6"><label for="password" class="block text-gray-700 font-medium mb-2">密碼</label><input type="password" id="password" class="w-full px-4 py-2 border border-gray-300 rounded-lg" required></div><div id="auth-error" class="mb-4 text-center text-red-500 text-sm h-5"></div><div class="flex"><button type="button" id="login-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition">登入</button></div></form>
             </div>
         </div>
     </div>
 
-    <!-- 主控台畫面 (所有看板) -->
     <div id="dashboard-view" class="hidden">
-        <nav class="bg-white shadow-md p-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-indigo-600">我的工作區</h1>
-            <div class="flex items-center space-x-4">
-                <span id="dashboard-user-email" class="text-gray-600"></span>
-                <button id="dashboard-logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">登出</button>
-            </div>
-        </nav>
-        <main class="p-8">
-            <h2 class="text-xl font-bold text-gray-700 mb-4">我的看板</h2>
-            <div id="boards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                 <div id="create-new-board" class="bg-gray-200 hover:bg-gray-300 rounded-lg p-4 shadow-md cursor-pointer transition-all h-32 flex items-center justify-center">
-                    <span class="font-bold text-lg text-gray-600">＋ 建立新看板</span>
-                </div>
-            </div>
-        </main>
+        <nav class="bg-white shadow-md p-4 flex justify-between items-center"><h1 class="text-2xl font-bold text-indigo-600">我的工作區</h1><div class="flex items-center space-x-4"><span id="dashboard-user-email" class="text-gray-600"></span><button id="dashboard-logout-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">登出</button></div></nav>
+        <main class="p-8"><h2 class="text-xl font-bold text-gray-700 mb-4">我的看板</h2><div id="boards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"><div id="create-new-board" class="bg-gray-200 hover:bg-gray-300 rounded-lg p-4 shadow-md cursor-pointer transition-all h-32 flex items-center justify-center"><span class="font-bold text-lg text-gray-600">＋ 建立新看板</span></div></div></main>
     </div>
 
-    <!-- 看板畫面 (單一看板) -->
     <div id="board-view" class="hidden flex flex-col h-screen board-bg">
-        <header class="p-2 bg-black bg-opacity-20 text-white flex justify-between items-center shrink-0">
-            <div class="flex items-center space-x-4">
-                <button id="back-to-dashboard-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">返回主控台</button>
-                <input id="board-name-header" class="text-xl font-bold bg-transparent p-2 rounded hover:bg-white hover:bg-opacity-20 focus:bg-white focus:bg-opacity-30 outline-none">
-            </div>
-            <div class="flex items-center space-x-4">
-                 <button id="manage-members-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">管理成員</button>
-                 <span id="board-user-email" class="hidden sm:block"></span>
-                 <button id="board-logout-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">登出</button>
-            </div>
-        </header>
-        <main id="lists-container" class="flex-grow p-4 flex items-start space-x-4 overflow-x-auto">
-            <div id="add-new-list-form" class="bg-white bg-opacity-80 rounded-lg p-2 w-72 shrink-0">
-                <input id="new-list-name-input" class="w-full p-2 border-2 border-transparent rounded focus:border-blue-500" placeholder="＋ 新增其他列表">
-            </div>
-        </main>
+        <header class="p-2 bg-black bg-opacity-20 text-white flex justify-between items-center shrink-0"><div class="flex items-center space-x-4"><button id="back-to-dashboard-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">返回主控台</button><input id="board-name-header" class="text-xl font-bold bg-transparent p-2 rounded hover:bg-white hover:bg-opacity-20 focus:bg-white focus:bg-opacity-30 outline-none"></div><div class="flex items-center space-x-4"><button id="manage-members-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">管理成員</button><span id="board-user-email" class="hidden sm:block"></span><button id="board-logout-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 font-bold py-2 px-4 rounded-lg">登出</button></div></header>
+        <main id="lists-container" class="flex-grow p-4 flex items-start space-x-4 overflow-x-auto"></main>
     </div>
 
-    <!-- 卡片詳細內容 Modal -->
     <div id="card-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-20">
-        <div class="bg-gray-100 rounded-lg shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] flex flex-col">
-            <div class="flex justify-between items-start mb-4">
-                <input id="card-modal-title" class="text-2xl font-bold bg-transparent w-full border-b-2 border-transparent focus:border-indigo-500 outline-none">
-                <button id="close-card-modal-btn" class="p-2 rounded-full hover:bg-gray-200">&times;</button>
-            </div>
-            <div class="flex-grow overflow-y-auto pr-2">
-                <h3 class="font-bold text-gray-700 mb-2">描述</h3>
-                <textarea id="card-modal-description" class="w-full p-2 border border-gray-300 rounded-lg" rows="4" placeholder="新增更詳細的描述..."></textarea>
-                <div class="flex justify-end mt-2">
-                    <button id="save-card-description-btn" class="bg-green-500 text-white py-1 px-3 rounded opacity-50 cursor-not-allowed" disabled>儲存</button>
-                </div>
-                
-                <h3 class="font-bold text-gray-700 mt-6 mb-2">附件</h3>
-                <div id="card-modal-attachments" class="space-y-2"></div>
-                <div class="flex mt-2 space-x-2">
-                    <input id="attachment-url" class="flex-grow p-2 border rounded" placeholder="貼上網頁或圖片連結...">
-                    <button id="add-attachment-btn" class="bg-blue-500 text-white p-2 rounded">新增</button>
-                </div>
-                
-                <h3 class="font-bold text-gray-700 mt-6 mb-2">留言</h3>
-                <div id="card-modal-comments" class="space-y-3"></div>
-                <div class="mt-4 flex space-x-2">
-                    <textarea id="comment-input" class="flex-grow p-2 border rounded" placeholder="新增留言..." rows="1"></textarea>
-                    <button id="add-comment-btn" class="bg-indigo-500 text-white p-2 rounded">送出</button>
-                </div>
-            </div>
-             <div class="flex justify-end mt-6 pt-4 border-t">
-                <button id="delete-card-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg">刪除此卡片</button>
-            </div>
-        </div>
+        <div class="bg-gray-100 rounded-lg shadow-2xl p-6 w-full max-w-3xl max-h-[90vh] flex flex-col"><div class="flex justify-between items-start mb-4"><input id="card-modal-title" class="text-2xl font-bold bg-transparent w-full border-b-2 border-transparent focus:border-indigo-500 outline-none"><button id="close-card-modal-btn" class="p-2 rounded-full hover:bg-gray-200">&times;</button></div><div class="flex-grow overflow-y-auto pr-2"><h3 class="font-bold text-gray-700 mb-2">描述</h3><textarea id="card-modal-description" class="w-full p-2 border border-gray-300 rounded-lg" rows="4" placeholder="新增更詳細的描述..."></textarea><div class="flex justify-end mt-2"><button id="save-card-description-btn" class="bg-green-500 text-white py-1 px-3 rounded opacity-50 cursor-not-allowed" disabled>儲存</button></div><h3 class="font-bold text-gray-700 mt-6 mb-2">附件</h3><div id="card-modal-attachments" class="space-y-2"></div><div class="flex mt-2 space-x-2"><input id="attachment-url" class="flex-grow p-2 border rounded" placeholder="貼上網頁或圖片連結..."><button id="add-attachment-btn" class="bg-blue-500 text-white p-2 rounded">新增</button></div><h3 class="font-bold text-gray-700 mt-6 mb-2">留言</h3><div id="card-modal-comments" class="space-y-3"></div><div class="mt-4 flex space-x-2"><textarea id="comment-input" class="flex-grow p-2 border rounded" placeholder="新增留言..." rows="1"></textarea><button id="add-comment-btn" class="bg-indigo-500 text-white p-2 rounded">送出</button></div></div><div class="flex justify-end mt-6 pt-4 border-t"><button id="delete-card-btn" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg">刪除此卡片</button></div></div>
     </div>
     
-    <!-- 成員管理 Modal -->
     <div id="members-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-30">
-        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-lg">
-            <h3 class="text-2xl font-bold mb-4">管理成員</h3>
-            <div id="members-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div>
-            <div class="flex items-center space-x-2 pt-4 border-t">
-                <input type="email" id="invite-email" class="w-full px-4 py-2 border rounded-lg" placeholder="輸入成員 Email...">
-                <button id="invite-btn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">邀請</button>
-            </div>
-            <p id="invite-error" class="text-red-500 text-sm h-4 mt-2"></p>
-            <div class="flex justify-end mt-4">
-                <button id="close-members-modal-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg">關閉</button>
-            </div>
-        </div>
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-lg"><h3 class="text-2xl font-bold mb-4">管理成員</h3><div id="members-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div><div class="flex items-center space-x-2 pt-4 border-t"><input type="email" id="invite-email" class="w-full px-4 py-2 border rounded-lg" placeholder="輸入成員 Email..."><button id="invite-btn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg">邀請</button></div><p id="invite-error" class="text-red-500 text-sm h-4 mt-2"></p><div class="flex justify-end mt-4"><button id="close-members-modal-btn" class="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg">關閉</button></div></div>
     </div>
 
-    <!-- TEMPLATES -->
-    <template id="board-card-template">
-        <div class="board-card bg-white rounded-lg p-4 shadow-md cursor-pointer transition-all h-32 flex flex-col justify-between hover:shadow-lg">
-            <h3 class="font-bold text-lg text-gray-800 break-words"></h3>
-            <div class="flex items-center -space-x-2"></div>
-        </div>
-    </template>
-    <template id="list-column-template">
-        <div class="list-column bg-gray-200 rounded-lg p-2 w-72 shrink-0 flex flex-col max-h-full">
-            <div class="flex items-center justify-between p-2">
-                <input class="list-name-input font-bold bg-transparent w-full focus:bg-white outline-none rounded">
-                <button class="delete-list-btn text-gray-500 hover:text-red-600 p-1 rounded-full">&times;</button>
-            </div>
-            <div class="cards-container flex-grow overflow-y-auto p-1 min-h-[50px]"></div>
-            <div class="add-card-form hidden p-1">
-                <textarea class="w-full p-2 border-gray-400 rounded-md" placeholder="為這張卡片輸入標題..."></textarea>
-                <div class="mt-2">
-                    <button class="add-card-submit-btn bg-green-500 text-white py-2 px-4 rounded">新增卡片</button>
-                    <button class="add-card-cancel-btn ml-2 text-gray-600">&times;</button>
-                </div>
-            </div>
-            <button class="add-card-btn mt-2 p-2 text-gray-600 hover:bg-gray-300 rounded text-left">＋ 新增卡片</button>
-        </div>
-    </template>
-    <template id="card-item-template">
-        <div class="card-item bg-white rounded-md p-3 shadow-sm cursor-pointer hover:bg-gray-50 text-gray-800"></div>
-    </template>
-    <template id="attachment-item-template">
-         <div class="attachment-item flex items-center justify-between p-2 bg-gray-200 rounded">
-            <a href="#" target="_blank" class="truncate text-blue-600 hover:underline"></a>
-            <button class="remove-attachment-btn text-red-500 p-1">&times;</button>
-        </div>
-    </template>
-    <template id="comment-item-template">
-        <div class="comment-item">
-            <div class="flex items-center space-x-2">
-                <span class="font-bold text-sm"></span>
-                <span class="text-xs text-gray-500"></span>
-            </div>
-            <p class="p-2 bg-white rounded mt-1 text-gray-800 break-words"></p>
-        </div>
-    </template>
-    <template id="member-item-template">
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span class="text-gray-700"></span>
-            <div class="flex items-center space-x-2">
-                <select class="role-selector border-gray-300 rounded"></select>
-                <button class="remove-member-btn text-red-500 p-1">&times;</button>
-            </div>
-        </div>
-    </template>
+    <template id="board-card-template"><div class="board-card bg-white rounded-lg p-4 shadow-md cursor-pointer transition-all h-32 flex flex-col justify-between hover:shadow-lg"><h3 class="font-bold text-lg text-gray-800 break-words"></h3><div class="flex items-center -space-x-2"></div></div></template>
+    <template id="list-column-template"><div class="list-column bg-gray-200 rounded-lg p-2 w-72 shrink-0 flex flex-col max-h-full"><div class="flex items-center justify-between p-2"><input class="list-name-input font-bold bg-transparent w-full focus:bg-white outline-none rounded"><button class="delete-list-btn text-gray-500 hover:text-red-600 p-1 rounded-full">&times;</button></div><div class="cards-container flex-grow overflow-y-auto p-1 min-h-[50px]"></div><div class="add-card-form hidden p-1"><textarea class="w-full p-2 border-gray-400 rounded-md" placeholder="為這張卡片輸入標題..."></textarea><div class="mt-2"><button class="add-card-submit-btn bg-green-500 text-white py-2 px-4 rounded">新增卡片</button><button class="add-card-cancel-btn ml-2 text-gray-600">&times;</button></div></div><button class="add-card-btn mt-2 p-2 text-gray-600 hover:bg-gray-300 rounded text-left">＋ 新增卡片</button></div></template>
+    <template id="card-item-template"><div class="card-item bg-white rounded-md p-3 shadow-sm cursor-pointer hover:bg-gray-50 text-gray-800"></div></template>
+    <template id="attachment-item-template"><div class="attachment-item flex items-center justify-between p-2 bg-gray-200 rounded"><a href="#" target="_blank" class="truncate text-blue-600 hover:underline"></a><button class="remove-attachment-btn text-red-500 p-1">&times;</button></div></template>
+    <template id="comment-item-template"><div class="comment-item"><div class="flex items-center space-x-2"><span class="font-bold text-sm"></span><span class="text-xs text-gray-500"></span></div><p class="p-2 bg-white rounded mt-1 text-gray-800 break-words"></p></div></template>
+    <template id="member-item-template"><div class="flex items-center justify-between p-2 bg-gray-50 rounded"><span class="text-gray-700"></span><div class="flex items-center space-x-2"><select class="role-selector border-gray-300 rounded"></select><button class="remove-member-btn text-red-500 p-1">&times;</button></div></div></template>
     
     <script type="module">
-        // --- 完整、可運作的 JavaScript 程式碼 ---
-        // (由於程式碼非常長，此處僅為示意，請參考完整檔案)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // This is a placeholder for the full JS code which is thousands of lines long.
-        // The file block below contains the actual complete and runnable code.
-        document.addEventListener('DOMContentLoaded', () => {
-             document.getElementById('loading-spinner').classList.add('hidden');
-             document.getElementById('login-view').classList.remove('hidden');
-        });
+        const firebaseConfig = { apiKey: "AIzaSyD648jO8xViAhhsDmUynDe6tY7IypYwzAU", authDomain: "my-project-kanban-fae66.firebaseapp.com", projectId: "my-project-kanban-fae66", storageBucket: "my-project-kanban-fae66.firebasestorage.app", messagingSenderId: "753453126057", appId: "1:753453126057:web:70e63a3d12571e48e734b8" };
+        
+        let db, auth, userId, userEmail, currentBoardId, currentBoardRole;
+        let activeListeners = [];
+        let listSortable, cardSortables = [];
+        
+        const views = { loading: document.getElementById('loading-spinner'), login: document.getElementById('login-view'), dashboard: document.getElementById('dashboard-view'), board: document.getElementById('board-view') };
+        const cardModal = { element: document.getElementById('card-modal'), title: document.getElementById('card-modal-title'), description: document.getElementById('card-modal-description'), saveDescBtn: document.getElementById('save-card-description-btn'), attachments: document.getElementById('card-modal-attachments'), attachmentUrl: document.getElementById('attachment-url'), addAttachmentBtn: document.getElementById('add-attachment-btn'), comments: document.getElementById('card-modal-comments'), commentInput: document.getElementById('comment-input'), addCommentBtn: document.getElementById('add-comment-btn'), deleteCardBtn: document.getElementById('delete-card-btn'), closeBtn: document.getElementById('close-card-modal-btn') };
+        const membersModal = { element: document.getElementById('members-modal'), list: document.getElementById('members-list'), inviteEmail: document.getElementById('invite-email'), inviteBtn: document.getElementById('invite-btn'), error: document.getElementById('invite-error'), closeBtn: document.getElementById('close-members-modal-btn') };
+
+        function showView(viewId) { Object.values(views).forEach(v => v.classList.add('hidden')); if(views[viewId]) views[viewId].classList.remove('hidden'); }
+        function cleanupListeners() { activeListeners.forEach(unsub => unsub()); activeListeners = []; if(listSortable) listSortable.destroy(); cardSortables.forEach(s => s.destroy()); cardSortables = []; }
+
+        async function startApp() {
+            try { const app = initializeApp(firebaseConfig); db = getFirestore(app); auth = getAuth(app); lucide.createIcons(); } catch (e) { console.error("Firebase a 初始化失敗:", e); return; }
+            onAuthStateChanged(auth, async (user) => {
+                cleanupListeners();
+                if (user) {
+                    userId = user.uid; userEmail = user.email;
+                    document.getElementById('dashboard-user-email').textContent = userEmail;
+                    document.getElementById('board-user-email').textContent = userEmail;
+                    const userPublicRef = doc(db, "users_public_data", userId);
+                    if (!(await getDoc(userPublicRef)).exists()) await setDoc(userPublicRef, { email: userEmail });
+                    const boardId = new URLSearchParams(window.location.search).get('boardId');
+                    if (boardId) await renderBoardView(boardId); else renderDashboard();
+                } else showView('login');
+            });
+            setupGlobalEventListeners();
+        }
+
+        function setupGlobalEventListeners() {
+            document.getElementById('login-btn').addEventListener('click', async () => { const e = document.getElementById('email').value, p = document.getElementById('password').value, errDiv = document.getElementById('auth-error'); errDiv.textContent = ''; try { await signInWithEmailAndPassword(auth, e, p); } catch(err){ errDiv.textContent = '登入失敗，請檢查您的帳號或密碼。'; }});
+            [document.getElementById('dashboard-logout-btn'), document.getElementById('board-logout-btn')].forEach(b => b.addEventListener('click', () => signOut(auth)));
+            document.getElementById('create-new-board').addEventListener('click', handleCreateNewBoard);
+            document.getElementById('back-to-dashboard-btn').addEventListener('click', () => { window.history.pushState({}, '', window.location.pathname); renderDashboard(); });
+            cardModal.closeBtn.addEventListener('click', () => cardModal.element.classList.add('hidden'));
+            membersModal.closeBtn.addEventListener('click', () => membersModal.element.classList.add('hidden'));
+        }
+
+        function renderDashboard() {
+            showView('dashboard');
+            const boardsGrid = document.getElementById('boards-grid');
+            const q = query(collection(db, 'boards'), where('members.' + userId, 'in', ['owner', 'editor', 'viewer']));
+            const unsub = onSnapshot(q, async (snapshot) => {
+                document.querySelectorAll('.board-card').forEach(c => c.remove());
+                for (const docSnap of snapshot.docs) {
+                    const boardData = docSnap.data();
+                    const template = document.getElementById('board-card-template').content.cloneNode(true);
+                    const card = template.querySelector('.board-card');
+                    card.querySelector('h3').textContent = boardData.name;
+                    card.dataset.id = docSnap.id;
+                    card.addEventListener('click', () => { window.history.pushState({}, '', `?boardId=${docSnap.id}`); renderBoardView(docSnap.id); });
+                    const membersDiv = card.querySelector('div');
+                    const publicDataPromises = Object.keys(boardData.members).slice(0, 5).map(id => getDoc(doc(db, 'users_public_data', id)));
+                    const publicDataDocs = await Promise.all(publicDataPromises);
+                    publicDataDocs.forEach(publicDoc => {
+                        if (publicDoc.exists()) {
+                            const memberAvatar = document.createElement('div');
+                            memberAvatar.className = 'w-6 h-6 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center text-xs font-bold border-2 border-white';
+                            memberAvatar.textContent = publicDoc.data().email.charAt(0).toUpperCase();
+                            memberAvatar.title = publicDoc.data().email;
+                            membersDiv.appendChild(memberAvatar);
+                        }
+                    });
+                    boardsGrid.prepend(card);
+                }
+            });
+            activeListeners.push(unsub);
+        }
+
+        async function handleCreateNewBoard() {
+            const boardName = prompt("請輸入新看板的名稱：");
+            if (boardName && boardName.trim()) {
+                await addDoc(collection(db, 'boards'), {
+                    name: boardName.trim(),
+                    ownerId: userId,
+                    members: { [userId]: 'owner' },
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+
+        async function renderBoardView(boardId) {
+            showView('board');
+            currentBoardId = boardId;
+            const boardNameHeader = document.getElementById('board-name-header');
+            const listsContainer = document.getElementById('lists-container');
+            const addListForm = document.getElementById('add-new-list-form');
+            listsContainer.innerHTML = ''; 
+            listsContainer.appendChild(addListForm);
+
+            const boardUnsub = onSnapshot(doc(db, 'boards', boardId), (docSnap) => {
+                if (!docSnap.exists() || !docSnap.data().members[userId]) {
+                    alert('您無權存取此看板或看板已被刪除');
+                    window.history.pushState({}, '', window.location.pathname);
+                    renderDashboard();
+                    return;
+                }
+                const boardData = docSnap.data();
+                currentBoardRole = boardData.members[userId];
+                boardNameHeader.value = boardData.name;
+                boardNameHeader.disabled = currentBoardRole !== 'owner';
+                updateUIForRole();
+            });
+            activeListeners.push(boardUnsub);
+
+            const listsQuery = query(collection(db, 'lists'), where('boardId', '==', boardId), orderBy('order'));
+            const listsUnsub = onSnapshot(listsQuery, (snapshot) => {
+                listsContainer.querySelectorAll('.list-column').forEach(col => col.remove());
+                cardSortables.forEach(s => s.destroy()); cardSortables = [];
+                snapshot.forEach(listDoc => renderList(listDoc));
+                initListSorting();
+            });
+            activeListeners.push(listsUnsub);
+        }
+        
+        function updateUIForRole() {
+            const isViewer = currentBoardRole === 'viewer';
+            const isOwner = currentBoardRole === 'owner';
+            document.querySelectorAll('.list-column input, .list-column button, .list-column textarea, #add-new-list-form').forEach(el => el.disabled = isViewer);
+            document.getElementById('manage-members-btn').style.display = isOwner ? 'block' : 'none';
+            document.getElementById('add-new-list-form').style.display = isViewer ? 'none' : 'block';
+            mainBoard.classList.toggle('viewer-mode', isViewer);
+        }
+        
+        function renderList(listDoc) {
+            const d = listDoc.data(), id = listDoc.id, t = document.getElementById('list-column-template').content.cloneNode(true), c = t.querySelector('.list-column');
+            c.dataset.id = id;
+            const n = c.querySelector('.list-name-input');
+            n.value = d.name;
+            n.addEventListener('blur', () => { const v = n.value.trim(); if(v && v !== d.name) updateDoc(doc(db, 'lists', id), { name: v }); else n.value = d.name; });
+            c.querySelector('.delete-list-btn').addEventListener('click', async () => { if(confirm(`確定要刪除列表 "${d.name}" 嗎？所有卡片將一併刪除。`)) await deleteDoc(doc(db, 'lists', id)); });
+            const cs = c.querySelector('.cards-container');
+            initCardSorting(id, cs);
+            const ab = c.querySelector('.add-card-btn'), af = c.querySelector('.add-card-form'), ct = af.querySelector('textarea'), sb = af.querySelector('.add-card-submit-btn'), cb = af.querySelector('.add-card-cancel-btn');
+            ab.addEventListener('click', () => { af.classList.remove('hidden'); ab.classList.add('hidden'); ct.focus(); });
+            cb.addEventListener('click', () => { af.classList.add('hidden'); ab.classList.remove('hidden'); ct.value = ''; });
+            sb.addEventListener('click', async () => {
+                const v = ct.value.trim();
+                if(v) {
+                    const q = query(collection(db, 'cards'), where('listId', '==', id));
+                    const s = await getDocs(q);
+                    await addDoc(collection(db, 'cards'), { title: v, boardId: d.boardId, listId: id, order: s.size, createdAt: serverTimestamp(), createdBy: userEmail });
+                    ct.value = ''; ct.focus();
+                }
+            });
+            const cq = query(collection(db, 'cards'), where('listId', '==', id), orderBy('order'));
+            const cu = onSnapshot(cq, (s) => { cs.innerHTML = ''; s.forEach(cd => renderCard(cs, cd)); });
+            activeListeners.push(cu);
+            document.getElementById('add-new-list-form').before(c);
+            updateUIForRole(); // Ensure new lists also get correct permissions
+        }
+
+        function renderCard(container, cardDoc) {
+            const d = cardDoc.data(), id = cardDoc.id, t = document.getElementById('card-item-template').content.cloneNode(true), c = t.querySelector('.card-item');
+            c.dataset.id = id; c.textContent = d.title;
+            c.addEventListener('click', () => openCardModal(id));
+            container.appendChild(c);
+        }
+
+        function initListSorting() { const l = document.getElementById('lists-container'); if(listSortable) listSortable.destroy(); listSortable = new Sortable(l, { animation: 150, ghostClass: 'ghost-list', filter: '#add-new-list-form', onEnd: async(e) => { if(currentBoardRole === 'viewer') return; const i = e.target.querySelectorAll('.list-column'), b = writeBatch(db); i.forEach((t, x) => { b.update(doc(db, 'lists', t.dataset.id), { order: x }) }); await b.commit() } }); }
+        function initCardSorting(listId, container) { const s = new Sortable(container, { group: 'cards', animation: 150, ghostClass: 'ghost-card', onEnd: async(e) => { if(currentBoardRole === 'viewer') return; const { item, from, to } = e, cId = item.dataset.id, fId = from.closest('.list-column').dataset.id, tId = to.closest('.list-column').dataset.id, b = writeBatch(db); if (fId === tId) Array.from(to.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); else { b.update(doc(db, 'cards', cId), { listId: tId }); Array.from(from.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); Array.from(to.children).forEach((c, i) => b.update(doc(db, 'cards', c.dataset.id), { order: i })); } await b.commit(); } }); cardSortables.push(s); }
+
+        let activeCardUnsubs = [];
+        async function openCardModal(cardId) {
+            activeCardUnsubs.forEach(unsub => unsub()); activeCardUnsubs = [];
+            cardModal.element.classList.remove('hidden'); cardModal.element.classList.add('flex');
+            
+            const cardRef = doc(db, 'cards', cardId);
+            const cardUnsub = onSnapshot(cardRef, (docSnap) => {
+                if(docSnap.exists()){
+                    const data = docSnap.data();
+                    cardModal.title.value = data.title;
+                    cardModal.description.value = data.description || '';
+                    cardModal.saveDescBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    cardModal.saveDescBtn.disabled = true;
+                    // Disable inputs if viewer
+                    const isViewer = currentBoardRole === 'viewer';
+                    cardModal.title.disabled = isViewer;
+                    cardModal.description.disabled = isViewer;
+                    cardModal.attachmentUrl.disabled = isViewer;
+                    cardModal.addAttachmentBtn.disabled = isViewer;
+                    cardModal.commentInput.disabled = isViewer;
+                    cardModal.addCommentBtn.disabled = isViewer;
+                    cardModal.deleteCardBtn.style.display = isViewer ? 'none' : 'block';
+                }
+            });
+            activeCardUnsubs.push(cardUnsub);
+            
+            // Render Attachments
+            const attachmentsQuery = query(collection(db, 'cards', cardId, 'attachments'), orderBy('createdAt'));
+            const attachmentsUnsub = onSnapshot(attachmentsQuery, (snapshot) => { /* ... */ });
+            activeCardUnsubs.push(attachmentsUnsub);
+
+            // Render Comments
+            const commentsQuery = query(collection(db, 'cards', cardId, 'comments'), orderBy('createdAt'));
+            const commentsUnsub = onSnapshot(commentsQuery, (snapshot) => { /* ... */ });
+            activeCardUnsubs.push(commentsUnsub);
+            
+            // Event Listeners for Modal
+            // ...
+        }
+        
+        // --- App Initialization ---
+        startApp();
     </script>
 </body>
 </html>

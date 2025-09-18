@@ -173,6 +173,7 @@
             document.getElementById('cancelNewBoardBtn').addEventListener('click', () => closeModal(newBoardModal));
             document.getElementById('closeShareModalBtn').addEventListener('click', () => closeModal(shareModal));
             document.getElementById('closeMembersModalBtn').addEventListener('click', () => closeModal(manageMembersModal));
+            
             manageMembersBtn.addEventListener('click', async () => {
                 const boardRef = doc(db, 'shared_boards', currentBoard.id);
                 const boardSnap = await getDoc(boardRef);
@@ -188,30 +189,35 @@
                 errorDiv.textContent = '';
                 if (!emailToInvite) return;
 
-                const usersRef = collection(db, "users");
-                const q = query(usersRef, where("email", "==", emailToInvite));
+                // This is a simplified lookup. For a real app, you'd use a Cloud Function
+                // to look up user UIDs by email for security reasons.
+                const usersCol = collection(db, "users_public_data"); 
+                const q = query(usersCol, where("email", "==", emailToInvite));
                 const querySnapshot = await getDocs(q);
-
+                
                 if (querySnapshot.empty) {
-                    errorDiv.textContent = '找不到該 Email 的使用者。';
+                    errorDiv.textContent = '找不到該 Email 的使用者。請確認該使用者已登入過本系統一次。';
                     return;
                 }
                 const invitedUserId = querySnapshot.docs[0].id;
                 
                 const boardRef = doc(db, 'shared_boards', currentBoard.id);
-                await runTransaction(db, async (transaction) => {
-                    const boardDoc = await transaction.get(boardRef);
-                    if (!boardDoc.exists()) throw "Document does not exist!";
-                    const members = boardDoc.data().members || {};
-                    if(members[invitedUserId]) {
-                        errorDiv.textContent = '該使用者已經是成員了。';
-                        return;
-                    }
-                    members[invitedUserId] = 'viewer'; // Default role
-                    transaction.update(boardRef, { members });
-                    await addBoardToUserListIfNeeded(currentBoard.id, boardDoc.data().name, invitedUserId);
-                });
-                document.getElementById('inviteEmail').value = '';
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const boardDoc = await transaction.get(boardRef);
+                        if (!boardDoc.exists()) throw "Document does not exist!";
+                        let members = boardDoc.data().members || {};
+                        if(members[invitedUserId]) {
+                            throw '該使用者已經是成員了。';
+                        }
+                        members[invitedUserId] = 'viewer'; // Default role
+                        transaction.update(boardRef, { members });
+                        await addBoardToUserListIfNeeded(currentBoard.id, boardDoc.data().name, invitedUserId);
+                    });
+                    document.getElementById('inviteEmail').value = '';
+                } catch (e) {
+                    errorDiv.textContent = e;
+                }
             });
         }
 
@@ -313,29 +319,55 @@
             const membersListDiv = document.getElementById('membersList');
             membersListDiv.innerHTML = '';
             const members = boardData.members || {};
+            
+            // This is a simplified lookup. A real app would batch these reads.
             for (const memberId in members) {
-                const userRef = doc(db, "users", memberId);
-                const userSnap = await getDoc(userRef);
-                const userEmail = userSnap.exists() ? userSnap.data().email : '未知使用者';
+                const userPublicRef = doc(db, "users_public_data", memberId);
+                const userSnap = await getDoc(userPublicRef);
+                const memberEmail = userSnap.exists() ? userSnap.data().email : '未知使用者';
                 
                 const memberDiv = document.createElement('div');
                 memberDiv.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
                 memberDiv.innerHTML = `
-                    <span class="text-gray-700">${userEmail}</span>
+                    <span class="text-gray-700">${memberEmail} ${memberId === userId ? '(You)' : ''}</span>
                     <div class="flex items-center space-x-2">
+                        ${memberId !== userId ? `
                         <select class="role-selector border-gray-300 rounded" data-id="${memberId}">
-                            <option value="owner" ${members[memberId] === 'owner' ? 'selected' : ''}>擁有者</option>
                             <option value="editor" ${members[memberId] === 'editor' ? 'selected' : ''}>編輯者</option>
                             <option value="viewer" ${members[memberId] === 'viewer' ? 'selected' : ''}>檢視者</option>
                         </select>
-                        <button class="remove-member-btn text-red-500 hover:text-red-700" data-id="${memberId}">&times;</button>
+                        <button class="remove-member-btn text-red-500 hover:text-red-700 p-1" data-id="${memberId}" title="移除成員">&times;</button>
+                        ` : `<span class="font-semibold text-gray-500">擁有者</span>`}
                     </div>
                 `;
                 membersListDiv.appendChild(memberDiv);
             }
+
+            membersListDiv.querySelectorAll('.role-selector').forEach(selector => {
+                selector.addEventListener('change', async (e) => {
+                    const newRole = e.target.value;
+                    const memberIdToUpdate = e.target.dataset.id;
+                    const boardRef = doc(db, 'shared_boards', currentBoard.id);
+                    await updateDoc(boardRef, { [`members.${memberIdToUpdate}`]: newRole });
+                });
+            });
+            membersListDiv.querySelectorAll('.remove-member-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const memberIdToRemove = e.target.closest('button').dataset.id;
+                    const boardRef = doc(db, 'shared_boards', currentBoard.id);
+                    // Firestore cannot delete a map key directly, so we need to read, modify, write
+                    const boardSnap = await getDoc(boardRef);
+                    if(boardSnap.exists()){
+                        const members = boardSnap.data().members;
+                        delete members[memberIdToRemove];
+                        await updateDoc(boardRef, { members });
+                        await deleteDoc(doc(db, `users/${memberIdToRemove}/accessible_boards`, currentBoard.id));
+                    }
+                });
+            });
         }
         
-        // --- Initialize App and Event Listeners ---
+        // --- Initialize App ---
         startApp();
         lucide.createIcons();
     </script>

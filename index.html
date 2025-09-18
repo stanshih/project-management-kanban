@@ -152,7 +152,7 @@
 
         function closeModal(modalElement) { modalElement.classList.add('hidden'); }
 
-        async function initializeApp() {
+        async function startApp() {
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -252,7 +252,7 @@
             });
         }
 
-        initializeApp();
+        startApp();
         lucide.createIcons();
     </script>
 </body>

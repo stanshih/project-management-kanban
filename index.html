@@ -171,7 +171,6 @@
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) { errorDiv.textContent = '登入失敗，請檢查信箱或密碼。'; }
             });
-
             document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             document.getElementById('cancelBtn').addEventListener('click', () => closeModal(taskModal));
@@ -433,3 +432,4 @@
     </script>
 </body>
 </html>
+

@@ -192,16 +192,19 @@
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) { errorDiv.textContent = '登入失敗，請檢查信箱或密碼。'; }
             });
+
             document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
             document.getElementById('addTaskBtn').addEventListener('click', () => openModal());
             document.getElementById('cancelBtn').addEventListener('click', () => closeModal(taskModal));
             document.getElementById('cancelNewBoardBtn').addEventListener('click', () => closeModal(newBoardModal));
             document.getElementById('closeShareModalBtn').addEventListener('click', () => closeModal(shareModal));
+            
             shareBoardBtn.addEventListener('click', () => {
                 document.getElementById('shareLinkInput').value = window.location.href;
                 shareModal.classList.remove('hidden');
                 document.getElementById('shareLinkInput').select();
             });
+
             boardSelector.addEventListener('change', () => {
                 const val = boardSelector.value;
                 if (val === 'create_new') {
@@ -213,6 +216,7 @@
                     window.location.href = `${window.location.pathname}?boardId=${val}`;
                 }
             });
+            
             document.getElementById('confirmNewBoardBtn').addEventListener('click', async () => {
                 const newBoardName = document.getElementById('newBoardName').value.trim();
                 if (!newBoardName) return alert('請輸入看板名稱');
@@ -221,6 +225,7 @@
                 await setDoc(doc(db, `users/${userId}/accessible_boards`, newBoardRef.id), { name: newBoardName });
                 window.location.href = `${window.location.pathname}?boardId=${newBoardRef.id}`;
             });
+
             taskForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('taskId').value;
@@ -232,34 +237,23 @@
                 if (id) await updateDoc(doc(db, path, id), taskData);
                 else await addDoc(collection(db, path), { ...taskData, status: 'todo', createdAt: serverTimestamp() });
                 closeModal(taskModal);
-<h4>看板分享功能升級指南</h4>
-<p>這份指南會說明我們將如何修改資料庫結構，並提供新的安全規則，以支援看板列表功能。</p>
-<pre><code class="language-markdown">### 1. 新的 Firestore 資料結構
+            });
+            
+            document.querySelectorAll('.tasks-container').forEach(column => {
+                column.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('column-dragover'); });
+                column.addEventListener('dragleave', (e) => { e.currentTarget.classList.remove('column-dragover'); });
+                column.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('column-dragover');
+                    const taskId = e.dataTransfer.getData('text/plain');
+                    const newStatus = e.currentTarget.parentElement.dataset.status;
+                    await updateDoc(doc(db, getTasksCollectionPath(), taskId), { status: newStatus });
+                });
+            });
+        }
 
-我們需要新增一條路徑來儲存這份清單：
-
-* **個人看板任務 (不變)**： `/users/{使用者ID}/tasks/{任務ID}`
-* **共享看板任務 (不變)**： `/shared_boards/{看板ID}/tasks/{任務ID}`
-* **使用者的看板清單 (新增)**： `/users/{使用者ID}/accessible_boards/{看板ID}`
-    * 這個路徑下的每個文件，都會儲存一個共享看板的 ID 和它的名稱。
-
-### 2. 更新 Firestore 安全規則
-
-為了讓使用者可以讀寫自己的看板清單，我們需要更新安全規則。請前往 Firebase 控制台 > Firestore Database > Rules，並用以下內容**完全替換**現有規則：
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // 允許使用者讀寫自己ID下的所有內容
-    // (包括 tasks 和新的 accessible_boards 清單)
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // 任何已登入的使用者都可以讀寫共享看板的內容
-    match /shared_boards/{boardId}/{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
+        initializeApp();
+        lucide.createIcons();
+    </script>
+</body>
+</html>

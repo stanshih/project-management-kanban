@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; }
-        .ghost-card {
+        .ghost-card, .ghost-list {
             opacity: 0.5;
             background: #c8ebfb;
             border: 1px dashed #3498db;
@@ -23,8 +23,8 @@
             background-image: linear-gradient(to bottom right, #0079BF, #005A8E);
         }
         #lists-container {
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
         #lists-container::-webkit-scrollbar {
             display: none;
@@ -66,7 +66,10 @@
         <main class="p-8">
             <h2 class="text-xl font-bold text-gray-700 mb-4">我的看板</h2>
             <div id="boards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                <!-- 看板卡片將會被插入到這裡 -->
+                 <!-- 新增看板的按鈕 -->
+                <div id="create-new-board" class="bg-gray-200 hover:bg-gray-300 rounded-lg p-4 shadow-md cursor-pointer transition-all h-28 flex items-center justify-center">
+                    <span class="font-bold text-lg text-gray-600">＋ 建立新看板</span>
+                </div>
             </div>
         </main>
     </div>
@@ -82,7 +85,10 @@
             </div>
         </header>
         <main id="lists-container" class="flex-grow p-4 flex items-start space-x-4 overflow-x-auto">
-            <!-- 列表將會被插入到這裡 -->
+            <!-- 新增列表的按鈕 -->
+            <div id="add-new-list-form" class="bg-white bg-opacity-50 rounded-lg p-2 w-72 shrink-0">
+                <input id="new-list-name-input" class="w-full p-2 border-2 border-transparent rounded focus:border-blue-500" placeholder="＋ 新增其他列表">
+            </div>
         </main>
     </div>
 
@@ -95,9 +101,9 @@
             </div>
             <div class="flex-grow overflow-y-auto pr-2">
                 <h3 class="font-bold text-gray-700 mb-2">描述</h3>
-                <textarea id="card-modal-description" class="w-full p-2 border border-gray-300 rounded-lg" rows="4"></textarea>
+                <textarea id="card-modal-description" class="w-full p-2 border border-gray-300 rounded-lg" rows="4" placeholder="新增更詳細的描述..."></textarea>
                 <div class="flex justify-end mt-2">
-                    <button id="save-card-description-btn" class="bg-green-500 text-white py-1 px-3 rounded">儲存</button>
+                    <button id="save-card-description-btn" class="bg-green-500 text-white py-1 px-3 rounded opacity-50 cursor-not-allowed" disabled>儲存</button>
                 </div>
                 
                 <h3 class="font-bold text-gray-700 mt-6 mb-2">附件</h3>
@@ -127,14 +133,21 @@
         </div>
     </template>
     <template id="list-column-template">
-        <div class="list-column bg-gray-200 rounded-lg p-2 w-72 shrink-0 flex flex-col">
-            <input class="list-name-input font-bold p-2 bg-transparent w-full focus:bg-white outline-none">
+        <div class="list-column bg-gray-200 rounded-lg p-2 w-72 shrink-0 flex flex-col max-h-full">
+            <input class="list-name-input font-bold p-2 bg-transparent w-full focus:bg-white outline-none rounded">
             <div class="cards-container flex-grow overflow-y-auto p-1 min-h-[50px]"></div>
+            <div class="add-card-form hidden p-1">
+                <textarea class="w-full p-2 border-gray-400 rounded-md" placeholder="為這張卡片輸入標題..."></textarea>
+                <div class="mt-2">
+                    <button class="add-card-submit-btn bg-green-500 text-white py-2 px-4 rounded">新增卡片</button>
+                    <button class="add-card-cancel-btn ml-2 text-gray-600">&times;</button>
+                </div>
+            </div>
             <button class="add-card-btn mt-2 p-2 text-gray-600 hover:bg-gray-300 rounded text-left">＋ 新增卡片</button>
         </div>
     </template>
     <template id="card-item-template">
-        <div class="card-item bg-white rounded-md p-3 shadow-sm cursor-pointer hover:bg-gray-50"></div>
+        <div class="card-item bg-white rounded-md p-3 shadow-sm cursor-pointer hover:bg-gray-50 text-gray-800"></div>
     </template>
     <template id="attachment-item-template">
          <div class="attachment-item flex items-center justify-between p-2 bg-gray-200 rounded">
@@ -148,21 +161,44 @@
                 <span class="font-bold text-sm"></span>
                 <span class="text-xs text-gray-500"></span>
             </div>
-            <p class="p-2 bg-white rounded mt-1"></p>
+            <p class="p-2 bg-white rounded mt-1 text-gray-800 break-words"></p>
         </div>
     </template>
 
 
     <script type="module">
-        // Firebase and SortableJS will be used here.
-        // This is a placeholder for a very large script.
-        // The actual implementation is very complex and would be too long to fit.
-        // The script handles all the logic for login, dashboard, boards, lists, cards, modals, and drag & drop.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- 全域變數 ---
+        let db, auth, userId, userEmail;
+        let activeListeners = [];
+        let listSortable, cardSortables = [];
         
-        // This is a simplified representation of the full script that would power the application.
-        // A complete implementation would be several thousand lines long.
+        const views = {
+            loading: document.getElementById('loading-spinner'),
+            login: document.getElementById('login-view'),
+            dashboard: document.getElementById('dashboard-view'),
+            board: document.getElementById('board-view'),
+        };
         
-        // Placeholder for Firebase initialization
+        const cardModal = {
+            element: document.getElementById('card-modal'),
+            title: document.getElementById('card-modal-title'),
+            description: document.getElementById('card-modal-description'),
+            saveDescBtn: document.getElementById('save-card-description-btn'),
+            attachments: document.getElementById('card-modal-attachments'),
+            attachmentUrl: document.getElementById('attachment-url'),
+            addAttachmentBtn: document.getElementById('add-attachment-btn'),
+            comments: document.getElementById('card-modal-comments'),
+            commentInput: document.getElementById('comment-input'),
+            addCommentBtn: document.getElementById('add-comment-btn'),
+            deleteCardBtn: document.getElementById('delete-card-btn'),
+            closeBtn: document.getElementById('close-card-modal-btn'),
+        };
+
+        // --- Firebase 設定 ---
         const firebaseConfig = {
             apiKey: "AIzaSyD648jO8xViAhhsDmUynDe6tY7IypYwzAU",
             authDomain: "my-project-kanban-fae66.firebaseapp.com",
@@ -171,20 +207,327 @@
             messagingSenderId: "753453126057",
             appId: "1:753453126057:web:70e63a3d12571e48e734b8",
         };
+
+        // --- 核心應用程式邏輯 ---
+        function showView(viewId) {
+            Object.values(views).forEach(view => view.classList.add('hidden'));
+            if (views[viewId]) {
+                views[viewId].classList.remove('hidden');
+            }
+        }
         
-        // Placeholder for main app logic
-        document.addEventListener('DOMContentLoaded', () => {
-            const loadingSpinner = document.getElementById('loading-spinner');
-            const loginView = document.getElementById('login-view');
-            
-            // Simulating app load
-            setTimeout(() => {
-                loadingSpinner.classList.add('hidden');
-                loginView.classList.remove('hidden');
+        function cleanupListeners() {
+            activeListeners.forEach(unsubscribe => unsubscribe());
+            activeListeners = [];
+            if (listSortable) listSortable.destroy();
+            cardSortables.forEach(s => s.destroy());
+            cardSortables = [];
+        }
+
+        async function startApp() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
                 lucide.createIcons();
-            }, 500);
-        });
+            } catch (e) {
+                console.error("Firebase 初始化失敗:", e);
+                return;
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                cleanupListeners();
+                if (user) {
+                    userId = user.uid;
+                    userEmail = user.email;
+                    document.getElementById('dashboard-user-email').textContent = userEmail;
+                    document.getElementById('board-user-email').textContent = userEmail;
+                    
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const boardId = urlParams.get('boardId');
+                    
+                    if (boardId) {
+                        renderBoardView(boardId);
+                    } else {
+                        renderDashboard();
+                    }
+                } else {
+                    showView('login');
+                }
+            });
+
+            // --- 全域事件監聽器 ---
+            document.getElementById('login-btn').addEventListener('click', async () => { /* ... */ });
+            document.getElementById('dashboard-logout-btn').addEventListener('click', () => signOut(auth));
+            document.getElementById('board-logout-btn').addEventListener('click', () => signOut(auth));
+            document.getElementById('create-new-board').addEventListener('click', handleCreateNewBoard);
+            document.getElementById('back-to-dashboard-btn').addEventListener('click', () => {
+                window.history.pushState({}, '', window.location.pathname);
+                renderDashboard();
+            });
+        }
         
+        // --- 主控台邏輯 ---
+        function renderDashboard() {
+            showView('dashboard');
+            const boardsGrid = document.getElementById('boards-grid');
+            
+            const q = query(collection(db, 'boards'), where('members', 'array-contains', userId));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                // Clear existing boards except the "create new" button
+                document.querySelectorAll('.board-card').forEach(card => card.remove());
+                snapshot.forEach(doc => {
+                    const boardData = doc.data();
+                    const template = document.getElementById('board-card-template');
+                    const clone = template.content.cloneNode(true);
+                    const card = clone.querySelector('.board-card');
+                    card.querySelector('h3').textContent = boardData.name;
+                    card.dataset.id = doc.id;
+                    card.addEventListener('click', () => {
+                        window.history.pushState({}, '', `?boardId=${doc.id}`);
+                        renderBoardView(doc.id);
+                    });
+                    boardsGrid.prepend(card);
+                });
+            });
+            activeListeners.push(unsubscribe);
+        }
+
+        async function handleCreateNewBoard() {
+            const boardName = prompt("請輸入新看板的名稱：");
+            if (boardName && boardName.trim()) {
+                await addDoc(collection(db, 'boards'), {
+                    name: boardName.trim(),
+                    ownerId: userId,
+                    members: [userId],
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+
+        // --- 看板畫面邏輯 ---
+        function renderBoardView(boardId) {
+            showView('board');
+            const boardNameHeader = document.getElementById('board-name-header');
+            const listsContainer = document.getElementById('lists-container');
+            
+            // Listen for board name changes
+            const boardUnsubscribe = onSnapshot(doc(db, 'boards', boardId), (doc) => {
+                if (doc.exists()) {
+                    boardNameHeader.textContent = doc.data().name;
+                }
+            });
+            activeListeners.push(boardUnsubscribe);
+
+            // Listen for lists
+            const listsQuery = query(collection(db, 'lists'), where('boardId', '==', boardId), orderBy('order'));
+            const listsUnsubscribe = onSnapshot(listsQuery, (snapshot) => {
+                listsContainer.querySelectorAll('.list-column').forEach(col => col.remove());
+                cardSortables.forEach(s => s.destroy()); // Clean up old sortables
+                cardSortables = [];
+
+                snapshot.forEach(listDoc => {
+                    renderList(listDoc.id, listDoc.data());
+                });
+                initListSorting(boardId);
+            });
+            activeListeners.push(listsUnsubscribe);
+        }
+
+        function renderList(listId, listData) {
+            const listsContainer = document.getElementById('lists-container');
+            const template = document.getElementById('list-column-template');
+            const clone = template.content.cloneNode(true);
+            const listColumn = clone.querySelector('.list-column');
+            listColumn.dataset.id = listId;
+
+            const nameInput = listColumn.querySelector('.list-name-input');
+            nameInput.value = listData.name;
+            nameInput.addEventListener('blur', () => {
+                const newName = nameInput.value.trim();
+                if (newName && newName !== listData.name) {
+                    updateDoc(doc(db, 'lists', listId), { name: newName });
+                } else {
+                    nameInput.value = listData.name;
+                }
+            });
+
+            const cardsContainer = listColumn.querySelector('.cards-container');
+            initCardSorting(listId, cardsContainer);
+
+            // Card creation UI
+            const addCardBtn = listColumn.querySelector('.add-card-btn');
+            const addCardForm = listColumn.querySelector('.add-card-form');
+            const cardTextarea = addCardForm.querySelector('textarea');
+            const submitBtn = addCardForm.querySelector('.add-card-submit-btn');
+            const cancelBtn = addCardForm.querySelector('.add-card-cancel-btn');
+
+            addCardBtn.addEventListener('click', () => {
+                addCardForm.classList.remove('hidden');
+                addCardBtn.classList.add('hidden');
+                cardTextarea.focus();
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                addCardForm.classList.add('hidden');
+                addCardBtn.classList.remove('hidden');
+                cardTextarea.value = '';
+            });
+
+            submitBtn.addEventListener('click', async () => {
+                const cardTitle = cardTextarea.value.trim();
+                if (cardTitle) {
+                    const cardsInList = await getDocs(query(collection(db, 'cards'), where('listId', '==', listId)));
+                    await addDoc(collection(db, 'cards'), {
+                        title: cardTitle,
+                        boardId: listData.boardId,
+                        listId: listId,
+                        order: cardsInList.size,
+                        createdAt: serverTimestamp()
+                    });
+                    cardTextarea.value = '';
+                    cardTextarea.focus();
+                }
+            });
+
+            // Listen for cards in this list
+            const cardsQuery = query(collection(db, 'cards'), where('listId', '==', listId), orderBy('order'));
+            const cardsUnsubscribe = onSnapshot(cardsQuery, (snapshot) => {
+                cardsContainer.innerHTML = '';
+                snapshot.forEach(cardDoc => {
+                    renderCard(cardsContainer, cardDoc.id, cardDoc.data());
+                });
+            });
+            activeListeners.push(cardsUnsubscribe);
+            
+            document.getElementById('add-new-list-form').before(listColumn);
+        }
+
+        function renderCard(container, cardId, cardData) {
+            const template = document.getElementById('card-item-template');
+            const clone = template.content.cloneNode(true);
+            const cardItem = clone.querySelector('.card-item');
+            cardItem.dataset.id = cardId;
+            cardItem.textContent = cardData.title;
+            cardItem.addEventListener('click', () => openCardModal(cardData.boardId, cardId));
+            container.appendChild(cardItem);
+        }
+
+        // --- SortableJS Drag & Drop ---
+        function initListSorting(boardId) {
+            const listsContainer = document.getElementById('lists-container');
+            if (listSortable) listSortable.destroy();
+            listSortable = new Sortable(listsContainer, {
+                animation: 150,
+                ghostClass: 'ghost-list',
+                onEnd: async (evt) => {
+                    const items = evt.target.querySelectorAll('.list-column');
+                    const batch = writeBatch(db);
+                    items.forEach((item, index) => {
+                        batch.update(doc(db, 'lists', item.dataset.id), { order: index });
+                    });
+                    await batch.commit();
+                }
+            });
+        }
+        
+        function initCardSorting(listId, container) {
+            const sortable = new Sortable(container, {
+                group: 'cards',
+                animation: 150,
+                ghostClass: 'ghost-card',
+                onEnd: async (evt) => {
+                    const { item, from, to, newIndex, oldIndex } = evt;
+                    const cardId = item.dataset.id;
+                    const fromListId = from.closest('.list-column').dataset.id;
+                    const toListId = to.closest('.list-column').dataset.id;
+
+                    const batch = writeBatch(db);
+
+                    if (fromListId === toListId) { // Reorder in same list
+                        const cards = Array.from(to.children);
+                        cards.forEach((card, index) => {
+                            batch.update(doc(db, 'cards', card.dataset.id), { order: index });
+                        });
+                    } else { // Move to different list
+                        batch.update(doc(db, 'cards', cardId), { listId: toListId });
+                        // Reorder source list
+                        const fromCards = Array.from(from.children);
+                        fromCards.forEach((card, index) => {
+                            batch.update(doc(db, 'cards', card.dataset.id), { order: index });
+                        });
+                        // Reorder destination list
+                        const toCards = Array.from(to.children);
+                         toCards.forEach((card, index) => {
+                            batch.update(doc(db, 'cards', card.dataset.id), { order: index });
+                        });
+                    }
+                    await batch.commit();
+                }
+            });
+            cardSortables.push(sortable);
+        }
+
+
+        // --- Simplified Placeholder Functions ---
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const errorDiv = document.getElementById('auth-error');
+            errorDiv.textContent = '';
+            try {
+                await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+            } catch(error) {
+                errorDiv.textContent = '登入失敗，請檢查您的帳號或密碼。';
+            }
+        });
+
+        document.getElementById('new-list-name-input').addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                const input = e.target;
+                const listName = input.value.trim();
+                const boardId = new URLSearchParams(window.location.search).get('boardId');
+                if (listName && boardId) {
+                    const listsInBoard = await getDocs(query(collection(db, 'lists'), where('boardId', '==', boardId)));
+                    await addDoc(collection(db, 'lists'), {
+                        name: listName,
+                        boardId: boardId,
+                        order: listsInBoard.size
+                    });
+                    input.value = '';
+                }
+            }
+        });
+
+        let activeCardUnsubscribe = null;
+        async function openCardModal(boardId, cardId) {
+            cardModal.element.classList.remove('hidden');
+            cardModal.element.classList.add('flex');
+            
+            if (activeCardUnsubscribe) activeCardUnsubscribe();
+
+            const cardRef = doc(db, 'cards', cardId);
+            activeCardUnsubscribe = onSnapshot(cardRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    cardModal.title.value = data.title;
+                    cardModal.description.value = data.description || '';
+                    // Render attachments, comments etc.
+                }
+            });
+            activeListeners.push(activeCardUnsubscribe);
+        }
+
+        cardModal.closeBtn.addEventListener('click', () => {
+            cardModal.element.classList.add('hidden');
+            cardModal.element.classList.remove('flex');
+            if (activeCardUnsubscribe) activeCardUnsubscribe();
+        });
+
+
+        // --- App Initialization ---
+        startApp();
+
     </script>
 </body>
 </html>
